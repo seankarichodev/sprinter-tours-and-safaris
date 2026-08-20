@@ -2,25 +2,30 @@
 
 /* =========================================================
    SPRINTER TOURS & SAFARIS
-   RECEIPT VERIFICATION CONFIG
+   RECEIPT CONFIGURATION
 ========================================================= */
 
-/*
- * Create your own long random secret locally.
- *
- * DO NOT:
- * - put it in JavaScript
- * - publish it on GitHub
- * - send it in chat
- */
 
-<?php
+/* =========================================================
+   LOAD ENVIRONMENT VARIABLES
+========================================================= */
 
-require_once __DIR__ . '/env_loader.php';
+require_once __DIR__ . "/env_loader.php";
+
+
+/* =========================================================
+   RECEIPT VERIFICATION SECRET
+========================================================= */
+
+$receiptVerifySecret = getenv("RECEIPT_VERIFY_SECRET");
+
+if (!$receiptVerifySecret) {
+    die("Receipt verification secret is missing.");
+}
 
 define(
     "RECEIPT_VERIFY_SECRET",
-    getenv("RECEIPT_VERIFY_SECRET")
+    $receiptVerifySecret
 );
 
 ?>
