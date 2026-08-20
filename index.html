@@ -1,0 +1,1554 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <meta
+        name="description"
+        content="Sprinter Tours & Safaris - Kenyan safaris, beach holidays and unforgettable travel experiences."
+    >
+
+    <title>
+        Sprinter Tours & Safaris
+    </title>
+
+    <link
+        rel="preconnect"
+        href="https://fonts.googleapis.com"
+    >
+
+    <link
+        rel="preconnect"
+        href="https://fonts.gstatic.com"
+        crossorigin
+    >
+
+    <link
+        href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet"
+    >
+
+    <link
+        rel="stylesheet"
+        href="style.css"
+    >
+
+</head>
+
+
+<body>
+
+
+<!-- =====================================================
+     LOADER
+===================================================== -->
+
+<div
+    id="loader"
+    aria-hidden="true"
+>
+
+    <div class="loader-content">
+
+        <img
+            src="images/Wildlife Sprinter Tours & Safaris.png"
+            class="loader-logo"
+            alt="Sprinter Tours & Safaris logo"
+        >
+
+        <h2>
+            SPRINTER TOURS & SAFARIS
+        </h2>
+
+        <div class="spinner"></div>
+
+        <p>
+            Loading your next adventure...
+        </p>
+
+    </div>
+
+</div>
+
+
+
+<!-- =====================================================
+     HEADER / NAVIGATION
+===================================================== -->
+
+<header id="navbar">
+
+    <a
+        href="index.html"
+        class="site-brand"
+        aria-label="Sprinter Tours and Safaris home"
+    >
+
+        <span>
+            SPRINTER TOURS & SAFARIS
+        </span>
+
+    </a>
+
+
+    <!-- MOBILE MENU BUTTON -->
+
+    <button
+        id="menuToggle"
+        class="menu-toggle"
+        type="button"
+        aria-label="Open navigation menu"
+        aria-expanded="false"
+        aria-controls="mainNav"
+    >
+
+        <span></span>
+        <span></span>
+        <span></span>
+
+    </button>
+
+
+    <!-- NAVIGATION -->
+
+    <nav
+        id="mainNav"
+        class="main-nav"
+    >
+
+        <a
+            href="index.html"
+            class="active"
+        >
+            Home
+        </a>
+
+        <a href="about.html">
+            About
+        </a>
+
+        <a href="destinations.html">
+            Destinations
+        </a>
+
+        <a href="packages.html">
+            Packages
+        </a>
+
+        <a href="gallery.html">
+            Gallery
+        </a>
+
+        <a href="booking.php">
+            Booking
+        </a>
+
+        <a href="contact.php">
+            Contact
+        </a>
+
+
+        <button
+            id="darkToggle"
+            class="theme-toggle"
+            type="button"
+            aria-label="Toggle dark mode"
+        >
+            🌙
+        </button>
+
+    </nav>
+
+</header>
+
+
+
+<!-- =====================================================
+     HERO SLIDER — EXPLORE KENYA
+===================================================== -->
+
+<section
+    class="hero-slider"
+    aria-label="Explore Kenya with Sprinter Tours and Safaris"
+>
+
+    <!-- SLIDE 1 — AMBOSELI -->
+    <div
+        class="slide active"
+        style="background-image: url('images/amboseli-national-park.jpg');"
+    >
+        <div class="hero-text">
+            <p class="hero-kicker">
+                DISCOVER • EXPERIENCE • EXPLORE
+            </p>
+
+            <h1>
+                Experience the Beauty of Kenya
+            </h1>
+
+            <p>
+                From breathtaking wildlife to unforgettable
+                landscapes, discover Kenya with Sprinter.
+            </p>
+
+            <div class="hero-actions">
+                <a
+                    href="packages.html"
+                    class="hero-button"
+                >
+                    Explore Kenya
+                </a>
+
+                <a
+                    href="contact.php"
+                    class="hero-secondary"
+                >
+                    Plan My Trip
+                </a>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- SLIDE 2 — MAASAI MARA -->
+    <div
+        class="slide"
+        style="background-image: url('images/masai-mara-saruni-mara-590x390.jpg');"
+    >
+        <div class="hero-text">
+            <p class="hero-kicker">
+                ICONIC KENYAN SAFARI
+            </p>
+
+            <h2>
+                Into the Heart of the Maasai Mara
+            </h2>
+
+            <p>
+                Endless savannahs, incredible wildlife
+                and safari moments you'll never forget.
+            </p>
+
+            <a
+                href="booking.php?package=maasai-mara"
+                class="hero-button"
+            >
+                Book Maasai Mara
+            </a>
+        </div>
+    </div>
+
+
+    <!-- SLIDE 3 — KENYAN COAST -->
+    <div
+        class="slide"
+        style="background-image: url('images/malindi beach.jpg');"
+    >
+        <div class="hero-text">
+            <p class="hero-kicker">
+                KENYA'S INDIAN OCEAN COAST
+            </p>
+
+            <h2>
+                Paradise on the Kenyan Coast
+            </h2>
+
+            <p>
+                White sand, palm trees and warm
+                Indian Ocean waters await.
+            </p>
+
+            <a
+                href="packages.html"
+                class="hero-button"
+            >
+                Explore the Coast
+            </a>
+        </div>
+    </div>
+
+
+    <!-- SLIDE 4 — LAMU -->
+    <div
+        class="slide"
+        style="background-image: url('images/Lamu.jpg');"
+    >
+        <div class="hero-text">
+            <p class="hero-kicker">
+                CULTURE • COAST • HERITAGE
+            </p>
+
+            <h2>
+                Discover Timeless Lamu
+            </h2>
+
+            <p>
+                Experience island life, Swahili heritage
+                and one of Kenya's most beautiful coastlines.
+            </p>
+
+            <a
+                href="destinations.html"
+                class="hero-button"
+            >
+                Discover Lamu
+            </a>
+        </div>
+    </div>
+
+
+    <!-- SLIDE 5 — FOURTEEN FALLS -->
+    <div
+        class="slide"
+        style="background-image: url('images/fourteen-falls.jpg');"
+    >
+        <div class="hero-text">
+            <p class="hero-kicker">
+                WATER • NATURE • ADVENTURE
+            </p>
+
+            <h2>
+                Discover Kenya Beyond the Safari
+            </h2>
+
+            <p>
+                Explore waterfalls, dramatic landscapes
+                and memorable natural attractions.
+            </p>
+
+            <a
+                href="destinations.html"
+                class="hero-button"
+            >
+                Explore More
+            </a>
+        </div>
+    </div>
+
+
+    <!-- SLIDE 6 — MT. LONGONOT -->
+    <div
+        class="slide"
+        style="background-image: url('images/longonot.jpg');"
+    >
+        <div class="hero-text">
+            <p class="hero-kicker">
+                HIKE • CLIMB • EXPLORE
+            </p>
+
+            <h2>
+                Adventure at Mt. Longonot
+            </h2>
+
+            <p>
+                Discover dramatic volcanic landscapes
+                and unforgettable Rift Valley views.
+            </p>
+
+            <a
+                href="destinations.html"
+                class="hero-button"
+            >
+                Start Exploring
+            </a>
+        </div>
+    </div>
+
+
+    <!-- SLIDE 7 — NAIVASHA -->
+    <div
+        class="slide"
+        style="background-image: url('images/naivasha-waterbuck-750x563.jpg');"
+    >
+        <div class="hero-text">
+            <p class="hero-kicker">
+                LAKESIDE ESCAPE
+            </p>
+
+            <h2>
+                Escape to Naivasha
+            </h2>
+
+            <p>
+                Wildlife, boat rides, beautiful scenery
+                and relaxing lakeside experiences.
+            </p>
+
+            <a
+                href="booking.php?package=naivasha"
+                class="hero-button"
+            >
+                Book Naivasha
+            </a>
+        </div>
+    </div>
+
+
+    <!-- SLIDE 8 — SAMBURU -->
+    <div
+        class="slide"
+        style="background-image: url('images/samburu.jpg');"
+    >
+        <div class="hero-text">
+            <p class="hero-kicker">
+                NORTHERN KENYA
+            </p>
+
+            <h2>
+                Wild and Beautiful Samburu
+            </h2>
+
+            <p>
+                Discover spectacular landscapes,
+                wildlife and the character of northern Kenya.
+            </p>
+
+            <a
+                href="packages.html"
+                class="hero-button"
+            >
+                Explore Samburu
+            </a>
+        </div>
+    </div>
+
+
+    <!-- SLIDE 9 — MAASAI CULTURE -->
+    <div
+        class="slide"
+        style="background-image: url('images/Maasai-2.jpg');"
+    >
+        <div class="hero-text">
+            <p class="hero-kicker">
+                PEOPLE • CULTURE • HERITAGE
+            </p>
+
+            <h2>
+                Experience Kenya's Living Culture
+            </h2>
+
+            <p>
+                Discover traditions, communities
+                and stories that make Kenya extraordinary.
+            </p>
+
+            <a
+                href="contact.php"
+                class="hero-button"
+            >
+                Plan a Cultural Experience
+            </a>
+        </div>
+    </div>
+
+
+    <!-- SLIDE 10 — ABERDARE -->
+    <div
+        class="slide"
+        style="background-image: url('images/the-ark-elephants-aberdare-590x390.jpg');"
+    >
+        <div class="hero-text">
+            <p class="hero-kicker">
+                FORESTS • WILDLIFE • ESCAPES
+            </p>
+
+            <h2>
+                Discover the Aberdare Highlands
+            </h2>
+
+            <p>
+                Forest landscapes, wildlife encounters
+                and peaceful escapes in Kenya's highlands.
+            </p>
+
+            <a
+                href="destinations.html"
+                class="hero-button"
+            >
+                Discover Aberdare
+            </a>
+        </div>
+    </div>
+
+</section>
+
+
+<!-- =====================================================
+     POPULAR DESTINATIONS
+===================================================== -->
+
+<section class="home-destinations">
+
+    <div class="section-heading">
+
+        <p class="section-label">
+            DISCOVER KENYA
+        </p>
+
+        <h2>
+            Popular Destinations
+        </h2>
+
+        <p class="section-intro">
+            Explore some of Kenya's most memorable
+            safari, beach and adventure destinations.
+        </p>
+
+    </div>
+
+
+    <!-- SEARCH -->
+
+    <div class="search-wrapper">
+
+        <input
+            type="search"
+            id="searchInput"
+            placeholder="Search destination..."
+            class="search-box"
+            aria-label="Search destinations"
+        >
+
+    </div>
+
+
+    <div class="home-cards">
+
+
+        <!-- MAASAI MARA -->
+
+        <article class="home-card glass">
+
+            <img
+                src="images/masai-mara-saruni-mara-590x390.jpg"
+                alt="Safari landscape in Maasai Mara"
+                loading="lazy"
+            >
+
+            <div class="card-content">
+
+                <h3>
+                    Maasai Mara
+                </h3>
+
+                <p>
+                    Famous for wildlife safaris
+                    and the Great Migration.
+                </p>
+
+            </div>
+
+        </article>
+
+
+
+        <!-- DIANI -->
+
+        <article class="home-card glass">
+
+            <img
+                src="images/malindi beach.jpg"
+                alt="Beautiful beach landscape"
+                loading="lazy"
+            >
+
+            <div class="card-content">
+
+                <h3>
+                    Diani Beach
+                </h3>
+
+                <p>
+                    White sands, warm waters
+                    and beautiful coastal escapes.
+                </p>
+
+            </div>
+
+        </article>
+
+
+
+        <!-- AMBOSELI -->
+
+        <article class="home-card glass">
+
+            <img
+                src="images/amboseli2-np-582x393-1.jpg"
+                alt="Amboseli landscape"
+                loading="lazy"
+            >
+
+            <div class="card-content">
+
+                <h3>
+                    Amboseli
+                </h3>
+
+                <p>
+                    Wildlife views with
+                    Mt. Kilimanjaro in the background.
+                </p>
+
+            </div>
+
+        </article>
+
+
+
+        <!-- NAIVASHA -->
+
+        <article class="home-card glass">
+
+            <img
+                src="images/naivasha-waterbuck-750x563.jpg"
+                alt="Lake Naivasha scenery"
+                loading="lazy"
+            >
+
+            <div class="card-content">
+
+                <h3>
+                    Naivasha
+                </h3>
+
+                <p>
+                    Lake adventures,
+                    boat rides and scenic escapes.
+                </p>
+
+            </div>
+
+        </article>
+
+
+    </div>
+
+
+    <div class="section-action">
+
+        <a
+            href="destinations.html"
+            class="section-link"
+        >
+            View All Destinations
+        </a>
+
+    </div>
+
+</section>
+
+
+
+<!-- =====================================================
+     PARALLAX
+===================================================== -->
+
+<section class="parallax">
+
+    <div class="parallax-text">
+
+        <p class="section-label">
+            UNFORGETTABLE EXPERIENCES
+        </p>
+
+        <h2>
+            Experience The Wild Like Never Before
+        </h2>
+
+        <p>
+            Adventure • Safari • Nature • Memories
+        </p>
+
+    </div>
+
+</section>
+
+
+
+<!-- =====================================================
+     FEATURED PACKAGES
+===================================================== -->
+
+<section class="home-packages">
+
+    <div class="section-heading">
+
+        <p class="section-label">
+            TRAVEL YOUR WAY
+        </p>
+
+        <h2>
+            Featured Tour Packages
+        </h2>
+
+        <p class="section-intro">
+            Choose an experience that matches
+            your travel plans and budget.
+        </p>
+
+    </div>
+
+
+    <div class="home-packages-container">
+
+
+        <!-- MAASAI MARA -->
+
+        <article class="home-package glass">
+
+            <img
+                src="images/maasai mara.jpg"
+                alt="Maasai Mara Safari"
+                loading="lazy"
+            >
+
+            <div class="package-content">
+
+                <h3>
+                    Maasai Mara Safari
+                </h3>
+
+                <p>
+                    3 Days Safari Experience
+                </p>
+
+                <h4>
+                    KES 25,000
+                </h4>
+
+                <a
+                    href="booking.php?package=maasai-mara"
+                    class="book-btn"
+                >
+                    Book Now
+                </a>
+
+            </div>
+
+        </article>
+
+
+
+        <!-- DIANI -->
+
+        <article class="home-package glass">
+
+            <img
+                src="images/diani.jpg"
+                alt="Diani Beach Tour"
+                loading="lazy"
+            >
+
+            <div class="package-content">
+
+                <h3>
+                    Diani Beach Tour
+                </h3>
+
+                <p>
+                    2 Days Beach Vacation
+                </p>
+
+                <h4>
+                    KES 18,000
+                </h4>
+
+                <a
+                    href="booking.php?package=diani-beach"
+                    class="book-btn"
+                >
+                    Book Now
+                </a>
+
+            </div>
+
+        </article>
+
+
+
+        <!-- AMBOSELI -->
+
+        <article class="home-package glass">
+
+            <img
+                src="images/amboseli-national-park.jpg"
+                alt="Amboseli Safari"
+                loading="lazy"
+            >
+
+            <div class="package-content">
+
+                <h3>
+                    Amboseli Safari
+                </h3>
+
+                <p>
+                    Mt. Kilimanjaro View Safari
+                </p>
+
+                <h4>
+                    KES 22,000
+                </h4>
+
+                <a
+                    href="booking.php?package=amboseli"
+                    class="book-btn"
+                >
+                    Book Now
+                </a>
+
+            </div>
+
+        </article>
+
+
+
+        <!-- NAIVASHA -->
+
+        <article class="home-package glass">
+
+            <img
+                src="images/vasha.jpg"
+                alt="Naivasha Tour"
+                loading="lazy"
+            >
+
+            <div class="package-content">
+
+                <h3>
+                    Naivasha Tour
+                </h3>
+
+                <p>
+                    Lake + Boat Ride
+                </p>
+
+                <h4>
+                    KES 15,000
+                </h4>
+
+                <a
+                    href="booking.php?package=naivasha"
+                    class="book-btn"
+                >
+                    Book Now
+                </a>
+
+            </div>
+
+        </article>
+
+
+
+        <!-- SAMBURU -->
+
+        <article class="home-package glass">
+
+            <img
+                src="images/samburu.jpg"
+                alt="Samburu Safari"
+                loading="lazy"
+            >
+
+            <div class="package-content">
+
+                <h3>
+                    Samburu Safari
+                </h3>
+
+                <p>
+                    Wildlife Adventure
+                </p>
+
+                <h4>
+                    KES 27,000
+                </h4>
+
+                <a
+                    href="packages.html"
+                    class="book-btn"
+                >
+                    View Package
+                </a>
+
+            </div>
+
+        </article>
+
+
+
+        <!-- TSAVO -->
+
+        <article class="home-package glass">
+
+            <img
+                src="images/TSAVO.jpg"
+                alt="Tsavo East Tour"
+                loading="lazy"
+            >
+
+            <div class="package-content">
+
+                <h3>
+                    Tsavo East Tour
+                </h3>
+
+                <p>
+                    Red Elephants Safari
+                </p>
+
+                <h4>
+                    KES 24,000
+                </h4>
+
+                <a
+                    href="packages.html"
+                    class="book-btn"
+                >
+                    View Package
+                </a>
+
+            </div>
+
+        </article>
+
+
+    </div>
+
+
+    <div class="section-action">
+
+        <a
+            href="packages.html"
+            class="section-link"
+        >
+            View All Packages
+        </a>
+
+    </div>
+
+</section>
+
+
+
+<!-- =====================================================
+     FAQ
+===================================================== -->
+
+<section class="faq">
+
+    <div class="section-heading">
+
+        <p class="section-label">
+            NEED TO KNOW
+        </p>
+
+        <h2>
+            Frequently Asked Questions
+        </h2>
+
+    </div>
+
+
+    <div class="faq-container">
+
+
+        <div class="faq-item">
+
+            <button
+                class="faq-question"
+                type="button"
+            >
+                How do I book a tour?
+            </button>
+
+            <div class="faq-answer">
+
+                <p>
+                    Choose a package, create or log in
+                    to your account, select your tour
+                    date and payment method, then complete
+                    your payment.
+                </p>
+
+            </div>
+
+        </div>
+
+
+
+        <div class="faq-item">
+
+            <button
+                class="faq-question"
+                type="button"
+            >
+                What payment methods do you accept?
+            </button>
+
+            <div class="faq-answer">
+
+                <p>
+                    Our system supports M-Pesa
+                    and Visa / Mastercard payments.
+                </p>
+
+            </div>
+
+        </div>
+
+
+
+        <div class="faq-item">
+
+            <button
+                class="faq-question"
+                type="button"
+            >
+                Are your tours safe?
+            </button>
+
+            <div class="faq-answer">
+
+                <p>
+                    We aim to provide safe,
+                    well-organised travel experiences
+                    with customer support throughout
+                    the journey.
+                </p>
+
+            </div>
+
+        </div>
+
+
+
+        <div class="faq-item">
+
+            <button
+                class="faq-question"
+                type="button"
+            >
+                Can I cancel my booking?
+            </button>
+
+            <div class="faq-answer">
+
+                <p>
+                    Cancellation conditions depend
+                    on the selected package and travel
+                    arrangements. Contact our team
+                    for assistance.
+                </p>
+
+            </div>
+
+        </div>
+
+
+
+        <div class="faq-item">
+
+            <button
+                class="faq-question"
+                type="button"
+            >
+                Do you offer group travel?
+            </button>
+
+            <div class="faq-answer">
+
+                <p>
+                    Yes. Group, family and corporate
+                    travel arrangements can be discussed
+                    directly with our team.
+                </p>
+
+            </div>
+
+        </div>
+
+
+
+        <div class="faq-item">
+
+            <button
+                class="faq-question"
+                type="button"
+            >
+                Do you provide transport?
+            </button>
+
+            <div class="faq-answer">
+
+                <p>
+                    Transport arrangements depend
+                    on the selected tour package.
+                </p>
+
+            </div>
+
+        </div>
+
+
+
+        <div class="faq-item">
+
+            <button
+                class="faq-question"
+                type="button"
+            >
+                Can international travellers book?
+            </button>
+
+            <div class="faq-answer">
+
+                <p>
+                    Yes. International travellers
+                    can create an account and use
+                    supported online payment methods.
+                </p>
+
+            </div>
+
+        </div>
+
+
+
+        <div class="faq-item">
+
+            <button
+                class="faq-question"
+                type="button"
+            >
+                Do you arrange accommodation?
+            </button>
+
+            <div class="faq-answer">
+
+                <p>
+                    Accommodation arrangements may
+                    be included or arranged depending
+                    on the package.
+                </p>
+
+            </div>
+
+        </div>
+
+
+
+        <div class="faq-item">
+
+            <button
+                class="faq-question"
+                type="button"
+            >
+                How long are your tours?
+            </button>
+
+            <div class="faq-answer">
+
+                <p>
+                    Tour duration varies depending
+                    on the selected destination
+                    and package.
+                </p>
+
+            </div>
+
+        </div>
+
+
+
+        <div class="faq-item">
+
+            <button
+                class="faq-question"
+                type="button"
+            >
+                How do I contact support?
+            </button>
+
+            <div class="faq-answer">
+
+                <p>
+                    Visit our Contact page and
+                    send us a message for travel,
+                    booking or customer support.
+                </p>
+
+            </div>
+
+        </div>
+
+
+    </div>
+
+</section>
+
+
+
+<!-- =====================================================
+     WHY CHOOSE US
+===================================================== -->
+
+<section class="why-us">
+
+    <div class="section-heading">
+
+        <p class="section-label">
+            WHY SPRINTER
+        </p>
+
+        <h2>
+            Why Choose Sprinter Tours & Safaris?
+        </h2>
+
+        <p class="section-intro">
+            Reliable travel experiences designed
+            around service, value and memorable journeys.
+        </p>
+
+    </div>
+
+
+    <div class="why-container">
+
+
+        <article class="why-box glass">
+
+            <div class="why-icon">
+                🧭
+            </div>
+
+            <h3>
+                Experienced Support
+            </h3>
+
+            <p>
+                We help travellers plan
+                enjoyable and organised
+                travel experiences.
+            </p>
+
+        </article>
+
+
+
+        <article class="why-box glass">
+
+            <div class="why-icon">
+                🧳
+            </div>
+
+            <h3>
+                Flexible Packages
+            </h3>
+
+            <p>
+                Options for safari,
+                beach, adventure and
+                different travel budgets.
+            </p>
+
+        </article>
+
+
+
+        <article class="why-box glass">
+
+            <div class="why-icon">
+                🔒
+            </div>
+
+            <h3>
+                Secure Booking
+            </h3>
+
+            <p>
+                Customer accounts,
+                booking records and
+                supported online payments.
+            </p>
+
+        </article>
+
+
+
+        <article class="why-box glass">
+
+            <div class="why-icon">
+                💬
+            </div>
+
+            <h3>
+                Customer Care
+            </h3>
+
+            <p>
+                Support before,
+                during and after
+                your travel experience.
+            </p>
+
+        </article>
+
+
+    </div>
+
+</section>
+
+
+
+<!-- =====================================================
+     FINAL CTA
+===================================================== -->
+
+<section class="home-contact">
+
+    <div class="home-contact-inner">
+
+        <p class="section-label">
+            WHERE NEXT?
+        </p>
+
+        <h2>
+            Ready for Your Next Adventure?
+        </h2>
+
+        <p>
+            From Savannah to Skyline,
+            your journey can begin with Sprinter.
+        </p>
+
+        <div class="home-contact-actions">
+
+            <a
+                href="packages.html"
+                class="contact-btn"
+            >
+                Explore Packages
+            </a>
+
+            <a
+                href="contact.php"
+                class="contact-btn secondary-contact-btn"
+            >
+                Contact Us
+            </a>
+
+        </div>
+
+    </div>
+
+</section>
+
+
+
+<!-- =====================================================
+     FOOTER
+===================================================== -->
+
+<footer>
+
+    <div class="footer-inner">
+
+        <div>
+
+            <strong>
+                Sprinter Tours & Safaris
+            </strong>
+
+            <p>
+                From Savannah to Skyline.
+            </p>
+
+        </div>
+
+
+        <p>
+            © 2026 Sprinter Tours & Safaris.
+            All Rights Reserved.
+        </p>
+
+    </div>
+
+</footer>
+
+
+
+<!-- =====================================================
+     BACK TO TOP
+===================================================== -->
+
+<button
+    id="topBtn"
+    type="button"
+    aria-label="Back to top"
+>
+    ↑
+</button>
+
+
+
+<!-- MAIN JAVASCRIPT -->
+
+<script src="script.js"></script>
+
+
+<!-- =====================================================
+     MOBILE NAVIGATION
+===================================================== -->
+
+<script>
+
+document.addEventListener(
+    "DOMContentLoaded",
+    function () {
+
+
+        const menuToggle =
+            document.getElementById(
+                "menuToggle"
+            );
+
+
+        const mainNav =
+            document.getElementById(
+                "mainNav"
+            );
+
+
+        if (
+            !menuToggle ||
+            !mainNav
+        ) {
+
+            return;
+
+        }
+
+
+        /* OPEN / CLOSE MENU */
+
+        menuToggle.addEventListener(
+            "click",
+            function () {
+
+
+                const open =
+                    mainNav.classList.toggle(
+                        "nav-open"
+                    );
+
+
+                menuToggle.classList.toggle(
+                    "menu-open",
+                    open
+                );
+
+
+                menuToggle.setAttribute(
+                    "aria-expanded",
+                    open
+                        ? "true"
+                        : "false"
+                );
+
+
+                document.body.classList.toggle(
+                    "mobile-menu-open",
+                    open
+                );
+
+
+            }
+        );
+
+
+        /* CLOSE MENU AFTER LINK CLICK */
+
+        mainNav
+            .querySelectorAll("a")
+            .forEach(
+                function (link) {
+
+                    link.addEventListener(
+                        "click",
+                        function () {
+
+                            mainNav.classList.remove(
+                                "nav-open"
+                            );
+
+                            menuToggle.classList.remove(
+                                "menu-open"
+                            );
+
+                            menuToggle.setAttribute(
+                                "aria-expanded",
+                                "false"
+                            );
+
+                            document.body.classList.remove(
+                                "mobile-menu-open"
+                            );
+
+                        }
+                    );
+
+                }
+            );
+
+
+        /* CLOSE MENU IF SCREEN RETURNS TO DESKTOP */
+
+        window.addEventListener(
+            "resize",
+            function () {
+
+                if (
+                    window.innerWidth > 900
+                ) {
+
+                    mainNav.classList.remove(
+                        "nav-open"
+                    );
+
+                    menuToggle.classList.remove(
+                        "menu-open"
+                    );
+
+                    menuToggle.setAttribute(
+                        "aria-expanded",
+                        "false"
+                    );
+
+                    document.body.classList.remove(
+                        "mobile-menu-open"
+                    );
+
+                }
+
+            }
+        );
+
+
+    }
+);
+
+</script>
+
+
+</body>
+
+</html>

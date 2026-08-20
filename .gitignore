@@ -1,0 +1,19 @@
+# Environment variables / secrets
+.env
+.env.*
+!.env.example
+
+# Local configuration containing secrets
+config.local.php
+secrets.php
+
+# Logs
+*.log
+
+# OS / editor files
+.DS_Store
+Thumbs.db
+.vscode/
+
+# Payment / callback logs
+mpesa_callback_log.txt
