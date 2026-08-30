@@ -122,3 +122,7 @@ wildlife-tours/
 ### Tour Packages
 
 ![Sprinter Tours and Safaris Tour Packages](images/tour-packages.png)
+
+### Online Booking
+
+![Sprinter Tours and Safaris Online Booking](images/booking-page.png)
