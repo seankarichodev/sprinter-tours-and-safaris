@@ -130,3 +130,7 @@ wildlife-tours/
 ### My Bookings
 
 ![Sprinter Tours and Safaris My Bookings](images/my-bookings.png)
+
+### Online Receipt
+
+![Sprinter Tours and Safaris Online Receipt](images/online-receipt.png)
