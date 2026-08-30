@@ -114,3 +114,7 @@ wildlife-tours/
 ### Homepage
 
 ![Sprinter Tours and Safaris Homepage](images/homepage-hero.png)
+
+### Destinations
+
+![Sprinter Tours and Safaris Destinations Page](images/destinations.png)
