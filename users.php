@@ -1,273 +1,1022 @@
 <?php
-session_start();
 
-if(!isset($_SESSION['admin'])){
-    header("Location: admin_login.php");
-    exit();
+require_once __DIR__ . "/admin_auth.php";
+require_once __DIR__ . "/db.php";
+
+
+/* =========================================================
+   INPUTS
+========================================================= */
+
+$search =
+    trim(
+        $_GET["search"] ?? ""
+    );
+
+
+$allowedLimits = [
+    5,
+    10,
+    25,
+    50
+];
+
+
+$limit =
+    isset($_GET["limit"])
+        ? (int) $_GET["limit"]
+        : 10;
+
+
+if (
+    !in_array(
+        $limit,
+        $allowedLimits,
+        true
+    )
+) {
+    $limit = 10;
 }
 
-include "db.php";
 
-/* LIMIT */
-$limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 5;
+$page =
+    isset($_GET["page"])
+        ? max(
+            1,
+            (int) $_GET["page"]
+        )
+        : 1;
 
-/* PAGE */
-$page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
-$start = ($page - 1) * $limit;
 
-/* SEARCH */
-$search = "";
-$where = "";
 
-if(isset($_GET['search']) && $_GET['search'] != ""){
-    $search = $conn->real_escape_string($_GET['search']);
-    $where = "WHERE name LIKE '%$search%' OR email LIKE '%$search%'";
+/* =========================================================
+   COUNT CUSTOMERS
+========================================================= */
+
+$countSql =
+    "
+    SELECT
+        COUNT(*) AS total
+    FROM users u
+    WHERE
+    (
+        ? = ''
+        OR u.name LIKE CONCAT('%', ?, '%')
+        OR u.email LIKE CONCAT('%', ?, '%')
+    )
+    ";
+
+
+$countStmt =
+    $conn->prepare(
+        $countSql
+    );
+
+
+$totalRecords = 0;
+
+
+if ($countStmt) {
+
+    $countStmt->bind_param(
+        "sss",
+        $search,
+        $search,
+        $search
+    );
+
+
+    $countStmt->execute();
+
+
+    $countResult =
+        $countStmt->get_result();
+
+
+    if ($countResult) {
+
+        $countRow =
+            $countResult->fetch_assoc();
+
+
+        $totalRecords =
+            (int) (
+                $countRow["total"]
+                ?? 0
+            );
+    }
+
+
+    $countStmt->close();
 }
 
-/* TOTAL USERS */
-$total_sql = "SELECT COUNT(*) as total FROM users $where";
-$total_result = $conn->query($total_sql);
-$total_row = $total_result->fetch_assoc();
-$total_records = $total_row['total'];
 
-$total_pages = ceil($total_records / $limit);
 
-/* FETCH USERS */
-$sql = "SELECT * FROM users $where ORDER BY id DESC LIMIT $start, $limit";
-$result = $conn->query($sql);
+$totalPages =
+    max(
+        1,
+        (int) ceil(
+            $totalRecords / $limit
+        )
+    );
 
-/* DELETE USER */
-if(isset($_GET['delete'])){
-    $id = (int)$_GET['delete'];
-    $conn->query("DELETE FROM users WHERE id=$id");
-    header("Location: users.php");
-    exit();
+
+if ($page > $totalPages) {
+    $page = $totalPages;
 }
+
+
+$offset =
+    ($page - 1)
+    * $limit;
+
+
+
+/* =========================================================
+   FETCH CUSTOMERS + BUSINESS INFORMATION
+========================================================= */
+
+$sql =
+    "
+    SELECT
+
+        u.id,
+        u.name,
+        u.email,
+        u.created_at,
+
+        COUNT(b.id)
+            AS total_bookings,
+
+        COALESCE(
+            SUM(
+                CASE
+
+                    WHEN LOWER(
+                        COALESCE(
+                            b.payment_status,
+                            ''
+                        )
+                    ) = 'paid'
+
+                    THEN b.amount
+
+                    ELSE 0
+
+                END
+            ),
+            0
+        )
+            AS total_spent,
+
+        MAX(
+            CASE
+
+                WHEN b.phone IS NOT NULL
+                     AND b.phone <> ''
+
+                THEN b.phone
+
+                ELSE NULL
+
+            END
+        )
+            AS phone,
+
+        MAX(b.date)
+            AS latest_travel_date
+
+    FROM users u
+
+    LEFT JOIN bookings b
+        ON b.user_id = u.id
+
+    WHERE
+    (
+        ? = ''
+        OR u.name LIKE CONCAT('%', ?, '%')
+        OR u.email LIKE CONCAT('%', ?, '%')
+    )
+
+    GROUP BY
+        u.id,
+        u.name,
+        u.email,
+        u.created_at
+
+    ORDER BY
+        u.created_at DESC
+
+    LIMIT $limit
+    OFFSET $offset
+    ";
+
+
+$stmt =
+    $conn->prepare(
+        $sql
+    );
+
+
+$result = null;
+
+
+if ($stmt) {
+
+    $stmt->bind_param(
+        "sss",
+        $search,
+        $search,
+        $search
+    );
+
+
+    $stmt->execute();
+
+
+    $result =
+        $stmt->get_result();
+}
+
+
+
+/* =========================================================
+   HELPERS
+========================================================= */
+
+function customerEscape(
+    mixed $value
+): string {
+
+    return htmlspecialchars(
+        (string) $value,
+        ENT_QUOTES,
+        "UTF-8"
+    );
+}
+
+
+function customerInitials(
+    string $name
+): string {
+
+    $name =
+        trim($name);
+
+
+    if ($name === "") {
+        return "?";
+    }
+
+
+    $parts =
+        preg_split(
+            '/\s+/',
+            $name
+        );
+
+
+    if (!$parts) {
+        return "?";
+    }
+
+
+    $initials = "";
+
+
+    foreach (
+        array_slice(
+            $parts,
+            0,
+            2
+        )
+        as $part
+    ) {
+
+        if ($part !== "") {
+
+            $initials .=
+                strtoupper(
+                    substr(
+                        $part,
+                        0,
+                        1
+                    )
+                );
+        }
+    }
+
+
+    return $initials !== ""
+        ? $initials
+        : "?";
+}
+
 ?>
 
 <!DOCTYPE html>
-<html>
+
+<html lang="en">
+
 <head>
-<title>Users Management</title>
 
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+    <meta charset="UTF-8">
 
-<style>
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
 
-body{
-    margin:0;
-    font-family:Poppins;
-    background:#f4f6f9;
-}
+    <title>
+        Customers | Sprinter Admin
+    </title>
 
-/* TOPBAR */
-.topbar{
-    background:#0a7a32;
-    color:white;
-    padding:15px;
-    display:flex;
-    justify-content:space-between;
-}
 
-/* SIDEBAR */
-.sidebar{
-    width:220px;
-    height:100vh;
-    background:#0a7a32;
-    position:fixed;
-    top:50px;
-}
+    <link
+        rel="preconnect"
+        href="https://fonts.googleapis.com"
+    >
 
-.sidebar a{
-    display:block;
-    color:white;
-    padding:12px;
-    text-decoration:none;
-}
+    <link
+        rel="preconnect"
+        href="https://fonts.gstatic.com"
+        crossorigin
+    >
 
-.sidebar a:hover{
-    background:white;
-    color:#0a7a32;
-}
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet"
+    >
 
-/* CONTENT */
-.content{
-    margin-left:240px;
-    padding:30px;
-}
 
-/* SEARCH */
-.search-box{
-    text-align:center;
-    margin-bottom:10px;
-}
+    <link
+        rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+    >
 
-.search-box input{
-    padding:8px;
-    width:220px;
-    border-radius:5px;
-    border:1px solid #ccc;
-}
 
-.search-box button{
-    padding:8px 12px;
-    background:#0a7a32;
-    color:white;
-    border:none;
-    border-radius:5px;
-}
-
-/* LIMIT */
-.limit-box{
-    text-align:center;
-    margin-bottom:10px;
-}
-
-/* TABLE */
-table{
-    width:85%;
-    margin:auto;
-    border-collapse:collapse;
-    background:white;
-    border-radius:10px;
-    overflow:hidden;
-}
-
-th{
-    background:#0a7a32;
-    color:white;
-}
-
-td,th{
-    padding:10px;
-    border:1px solid #ddd;
-    text-align:center;
-}
-
-tr:hover{
-    background:#f1f1f1;
-}
-
-/* ACTION */
-.action a{
-    margin:0 5px;
-    text-decoration:none;
-    font-weight:bold;
-}
-
-.delete{
-    color:red;
-}
-
-/* PAGINATION */
-.pagination{
-    text-align:center;
-    margin-top:15px;
-}
-
-.pagination a{
-    padding:6px 10px;
-    margin:3px;
-    background:#ddd;
-    text-decoration:none;
-    border-radius:5px;
-    color:black;
-}
-
-.pagination a.active{
-    background:#0a7a32;
-    color:white;
-}
-
-</style>
+    <link
+        rel="stylesheet"
+        href="admin.css"
+    >
 
 </head>
+
+
 <body>
 
-<div class="topbar">
-    <div>Users Management</div>
-    <a href="logout.php" style="color:white;">Logout</a>
+
+<div class="admin-layout">
+
+
+    <?php
+        require __DIR__
+            . "/admin_sidebar.php";
+    ?>
+
+
+    <div class="admin-main">
+
+
+        <?php
+            require __DIR__
+                . "/admin_topbar.php";
+        ?>
+
+
+        <main class="admin-content">
+
+
+            <!-- =============================================
+                 HEADER
+            ============================================== -->
+
+            <section class="admin-page-header">
+
+                <div>
+
+                    <h1>
+                        Customers
+                    </h1>
+
+                    <p>
+                        View registered customers,
+                        booking activity and customer value.
+                    </p>
+
+                </div>
+
+            </section>
+
+
+
+            <!-- =============================================
+                 SEARCH
+            ============================================== -->
+
+            <form
+                method="GET"
+                action="users.php"
+                class="admin-toolbar"
+            >
+
+
+                <div class="admin-toolbar-group">
+
+
+                    <div class="admin-search">
+
+                        <i class="fa-solid fa-magnifying-glass"></i>
+
+
+                        <input
+                            type="search"
+                            name="search"
+                            value="<?php echo customerEscape($search); ?>"
+                            placeholder="Search customer name or email..."
+                        >
+
+                    </div>
+
+
+                    <button
+                        type="submit"
+                        class="admin-button admin-button-primary"
+                    >
+
+                        <i class="fa-solid fa-magnifying-glass"></i>
+
+                        Search
+
+                    </button>
+
+
+                    <?php if ($search !== ""): ?>
+
+                        <a
+                            href="users.php"
+                            class="admin-button admin-button-light"
+                        >
+
+                            Clear
+
+                        </a>
+
+                    <?php endif; ?>
+
+
+                </div>
+
+
+
+                <div class="admin-toolbar-group">
+
+                    <label for="limit">
+
+                        <small>
+                            Show
+                        </small>
+
+                    </label>
+
+
+                    <select
+                        name="limit"
+                        id="limit"
+                        class="admin-select"
+                        onchange="this.form.submit()"
+                    >
+
+
+                        <?php foreach (
+                            $allowedLimits
+                            as $option
+                        ): ?>
+
+
+                            <option
+                                value="<?php echo $option; ?>"
+                                <?php
+                                    echo $limit === $option
+                                        ? "selected"
+                                        : "";
+                                ?>
+                            >
+
+                                <?php echo $option; ?>
+
+                            </option>
+
+
+                        <?php endforeach; ?>
+
+
+                    </select>
+
+                </div>
+
+
+            </form>
+
+
+
+            <!-- =============================================
+                 CUSTOMER TABLE
+            ============================================== -->
+
+            <section class="admin-panel">
+
+
+                <div class="admin-panel-header">
+
+                    <h2>
+                        All Customers
+                    </h2>
+
+
+                    <span
+                        style="
+                            font-size: 12px;
+                            color: var(--admin-muted);
+                        "
+                    >
+
+                        <?php
+                            echo number_format(
+                                $totalRecords
+                            );
+                        ?>
+
+                        customer<?php
+                            echo $totalRecords === 1
+                                ? ""
+                                : "s";
+                        ?>
+
+                    </span>
+
+                </div>
+
+
+
+                <div class="admin-table-wrapper">
+
+
+                    <?php if (
+                        $result &&
+                        $result->num_rows > 0
+                    ): ?>
+
+
+                        <table class="admin-table">
+
+
+                            <thead>
+
+                                <tr>
+
+                                    <th>
+                                        Customer
+                                    </th>
+
+                                    <th>
+                                        Contact
+                                    </th>
+
+                                    <th>
+                                        Bookings
+                                    </th>
+
+                                    <th>
+                                        Total Spent
+                                    </th>
+
+                                    <th>
+                                        Latest Travel
+                                    </th>
+
+                                    <th>
+                                        Joined
+                                    </th>
+
+                                    <th>
+                                        Action
+                                    </th>
+
+                                </tr>
+
+                            </thead>
+
+
+
+                            <tbody>
+
+
+                            <?php while (
+                                $customer =
+                                    $result->fetch_assoc()
+                            ): ?>
+
+
+                                <tr>
+
+
+                                    <!-- CUSTOMER -->
+
+                                    <td>
+
+                                        <div
+                                            style="
+                                                display:flex;
+                                                align-items:center;
+                                                gap:11px;
+                                            "
+                                        >
+
+
+                                            <div
+                                                style="
+                                                    width:38px;
+                                                    height:38px;
+                                                    border-radius:50%;
+                                                    display:grid;
+                                                    place-items:center;
+                                                    background:#e8f5ee;
+                                                    color:var(--admin-green);
+                                                    font-size:12px;
+                                                    font-weight:800;
+                                                    flex-shrink:0;
+                                                "
+                                            >
+
+                                                <?php
+                                                    echo customerEscape(
+                                                        customerInitials(
+                                                            $customer[
+                                                                "name"
+                                                            ]
+                                                            ?? ""
+                                                        )
+                                                    );
+                                                ?>
+
+                                            </div>
+
+
+                                            <div class="customer-cell">
+
+                                                <strong>
+
+                                                    <?php
+                                                        echo customerEscape(
+                                                            $customer[
+                                                                "name"
+                                                            ]
+                                                            ?? ""
+                                                        );
+                                                    ?>
+
+                                                </strong>
+
+
+                                                <span>
+
+                                                    Customer
+                                                    #<?php
+                                                        echo (int)
+                                                            $customer["id"];
+                                                    ?>
+
+                                                </span>
+
+                                            </div>
+
+
+                                        </div>
+
+                                    </td>
+
+
+
+                                    <!-- CONTACT -->
+
+                                    <td class="customer-cell">
+
+                                        <strong>
+
+                                            <?php
+                                                echo customerEscape(
+                                                    $customer[
+                                                        "email"
+                                                    ]
+                                                    ?? ""
+                                                );
+                                            ?>
+
+                                        </strong>
+
+
+                                        <span>
+
+                                            <?php
+
+                                            $phone =
+                                                trim(
+                                                    (string) (
+                                                        $customer[
+                                                            "phone"
+                                                        ]
+                                                        ?? ""
+                                                    )
+                                                );
+
+
+                                            echo $phone !== ""
+                                                ? customerEscape(
+                                                    $phone
+                                                )
+                                                : "No phone recorded";
+
+                                            ?>
+
+                                        </span>
+
+                                    </td>
+
+
+
+                                    <!-- BOOKINGS -->
+
+                                    <td>
+
+                                        <strong>
+
+                                            <?php
+                                                echo number_format(
+                                                    (int) (
+                                                        $customer[
+                                                            "total_bookings"
+                                                        ]
+                                                        ?? 0
+                                                    )
+                                                );
+                                            ?>
+
+                                        </strong>
+
+                                    </td>
+
+
+
+                                    <!-- TOTAL SPENT -->
+
+                                    <td class="amount-cell">
+
+                                        KES
+
+                                        <?php
+                                            echo number_format(
+                                                (float) (
+                                                    $customer[
+                                                        "total_spent"
+                                                    ]
+                                                    ?? 0
+                                                ),
+                                                0
+                                            );
+                                        ?>
+
+                                    </td>
+
+
+
+                                    <!-- LATEST TRAVEL -->
+
+                                    <td>
+
+                                        <?php
+
+                                        $latestTravel =
+                                            $customer[
+                                                "latest_travel_date"
+                                            ]
+                                            ?? null;
+
+
+                                        echo $latestTravel
+                                            ? date(
+                                                "d M Y",
+                                                strtotime(
+                                                    $latestTravel
+                                                )
+                                            )
+                                            : "—";
+
+                                        ?>
+
+                                    </td>
+
+
+
+                                    <!-- JOINED -->
+
+                                    <td>
+
+                                        <?php
+
+                                        $joined =
+                                            $customer[
+                                                "created_at"
+                                            ]
+                                            ?? null;
+
+
+                                        echo $joined
+                                            ? date(
+                                                "d M Y",
+                                                strtotime(
+                                                    $joined
+                                                )
+                                            )
+                                            : "—";
+
+                                        ?>
+
+                                    </td>
+
+
+
+                                    <!-- ACTION -->
+
+                                    <td>
+
+                                        <a
+                                            href="customer.php?id=<?php echo (int) $customer["id"]; ?>"
+                                            class="admin-action-link admin-action-view"
+                                        >
+
+                                            <i class="fa-regular fa-eye"></i>
+
+                                            View
+
+                                        </a>
+
+                                    </td>
+
+
+                                </tr>
+
+
+                            <?php endwhile; ?>
+
+
+                            </tbody>
+
+
+                        </table>
+
+
+                    <?php else: ?>
+
+
+                        <div class="admin-empty">
+
+                            <i
+                                class="fa-solid fa-users"
+                                style="
+                                    display:block;
+                                    font-size:30px;
+                                    margin-bottom:12px;
+                                "
+                            ></i>
+
+
+                            No customers found.
+
+                        </div>
+
+
+                    <?php endif; ?>
+
+
+                </div>
+
+
+
+                <!-- =========================================
+                     PAGINATION
+                ========================================== -->
+
+                <?php if (
+                    $totalPages > 1
+                ): ?>
+
+
+                    <nav class="admin-pagination">
+
+
+                        <?php
+
+                        for (
+                            $i = 1;
+                            $i <= $totalPages;
+                            $i++
+                        ):
+
+                            $query =
+                                http_build_query(
+                                    [
+                                        "page"
+                                            => $i,
+
+                                        "limit"
+                                            => $limit,
+
+                                        "search"
+                                            => $search
+                                    ]
+                                );
+
+                        ?>
+
+
+                            <a
+                                href="?<?php echo customerEscape($query); ?>"
+                                class="<?php
+                                    echo $i === $page
+                                        ? "active"
+                                        : "";
+                                ?>"
+                            >
+
+                                <?php echo $i; ?>
+
+                            </a>
+
+
+                        <?php endfor; ?>
+
+
+                    </nav>
+
+
+                <?php endif; ?>
+
+
+            </section>
+
+
+        </main>
+
+    </div>
+
 </div>
 
-<div class="sidebar">
-    <a href="dashboard.php">Dashboard</a>
-    <a href="bookings.php">Bookings</a>
-    <a href="users.php">Users</a>
-    <a href="messages.php">Messages</a>
-</div>
 
-<div class="content">
 
-<h2 style="text-align:center;">All Users</h2>
+<script>
 
-<!-- SEARCH -->
-<form method="GET" class="search-box">
-    <input type="text" name="search" placeholder="Search name or email" value="<?php echo $search; ?>">
-    <button>Search</button>
-</form>
+const sidebar =
+    document.getElementById(
+        "adminSidebar"
+    );
 
-<!-- LIMIT -->
-<div class="limit-box">
-<form method="GET">
-    <input type="hidden" name="search" value="<?php echo $search; ?>">
-    Show
-    <select name="limit" onchange="this.form.submit()">
-        <option value="5" <?php if($limit==5) echo "selected"; ?>>5</option>
-        <option value="10" <?php if($limit==10) echo "selected"; ?>>10</option>
-        <option value="25" <?php if($limit==25) echo "selected"; ?>>25</option>
-        <option value="50" <?php if($limit==50) echo "selected"; ?>>50</option>
-    </select>
-    entries
-</form>
-</div>
 
-<?php
-if($result->num_rows > 0){
+const mobileToggle =
+    document.getElementById(
+        "adminMobileToggle"
+    );
 
-echo "<table>";
 
-echo "<tr>
-<th>ID</th>
-<th>Name</th>
-<th>Email</th>
-<th>Created</th>
-<th>Action</th>
-</tr>";
+if (
+    sidebar &&
+    mobileToggle
+) {
 
-while($row = $result->fetch_assoc()){
+    mobileToggle.addEventListener(
+        "click",
+        function () {
 
-echo "<tr>";
+            sidebar.classList.toggle(
+                "open"
+            );
 
-echo "<td>".$row['id']."</td>";
-echo "<td>".$row['name']."</td>";
-echo "<td>".$row['email']."</td>";
-echo "<td>".$row['created_at']."</td>";
+        }
+    );
 
-echo "<td class='action'>
-<a href='users.php?delete=".$row["id"]."' class='delete' onclick=\"return confirm('Delete this user?')\">Delete</a>
-</td>";
-
-echo "</tr>";
 }
 
-echo "</table>";
+</script>
 
-}else{
-echo "<p style='text-align:center; color:red;'>No users found</p>";
-}
-?>
-
-<!-- PAGINATION -->
-<div class="pagination">
-<?php
-for($i = 1; $i <= $total_pages; $i++){
-    $active = ($i == $page) ? "active" : "";
-    echo "<a class='$active' href='?page=$i&limit=$limit&search=$search'>$i</a>";
-}
-?>
-</div>
-
-</div>
 
 </body>
+
 </html>
+
+<?php
+
+if ($stmt) {
+    $stmt->close();
+}
+
+?>
