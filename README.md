@@ -105,3 +105,11 @@ wildlife-tours/
 ├── style.css
 ├── script.js
 └── README.md
+
+---
+
+## 📸 Project Screenshots
+
+### Homepage
+
+![Sprinter Tours and Safaris Homepage](images/homepage-hero.png)
