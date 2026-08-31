@@ -305,8 +305,7 @@ if (
         $allowedPayments = [
 
             "Mpesa",
-            "Card",
-            "PayPal"
+            "Card"
 
         ];
 
@@ -1254,21 +1253,10 @@ if (
 
 
                         <option
-                            value="PayPal"
-
-                            <?php
-
-                            if (
-                                ($_POST["payment"] ?? "")
-                                === "PayPal"
-                            ) {
-
-                                echo "selected";
-                            }
-
-                            ?>
+                            value=""
+                            disabled
                         >
-                            PayPal
+                            PayPal — Coming Soon
                         </option>
 
 
@@ -1345,7 +1333,7 @@ if (
                         </strong>
 
                         <p>
-                            Select M-Pesa, card or PayPal
+                            Select M-Pesa or Visa / Mastercard
                             to continue.
                         </p>
 
@@ -1690,35 +1678,11 @@ document.addEventListener(
             }
 
 
-            /* PAYPAL */
-
-            else if (
-                method === "PayPal"
-            ) {
-
-                paymentInfo.innerHTML = `
-
-                    <div class="payment-info-icon">
-                        🌐
-                    </div>
-
-                    <div>
-
-                        <strong>
-                            PayPal
-                        </strong>
-
-                        <p>
-                            PayPal support is being prepared.
-                            The booking will remain Pending
-                            until payment is available.
-                        </p>
-
-                    </div>
-
-                `;
-
-            }
+            /* =================================================
+               PAYPAL
+               Standby only. The option is disabled in the form
+               until the business PayPal account is configured.
+            ================================================= */
 
 
             /* NONE */
@@ -1738,7 +1702,7 @@ document.addEventListener(
                         </strong>
 
                         <p>
-                            Select M-Pesa, card or PayPal
+                            Select M-Pesa or Visa / Mastercard
                             to continue.
                         </p>
 
