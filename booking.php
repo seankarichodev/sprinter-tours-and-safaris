@@ -171,6 +171,40 @@ $packages = [
         "image" =>
             "images/naivasha-waterbuck-750x563.jpg"
 
+    ],
+
+
+    "samburu" => [
+
+        "name" =>
+            "Samburu Safari",
+
+        "description" =>
+            "Wildlife Adventure",
+
+        "price" =>
+            27000.00,
+
+        "image" =>
+            "images/samburu.jpg"
+
+    ],
+
+
+    "tsavo-east" => [
+
+        "name" =>
+            "Tsavo East Tour",
+
+        "description" =>
+            "Red Elephants Safari",
+
+        "price" =>
+            24000.00,
+
+        "image" =>
+            "images/TSAVO.jpg"
+
     ]
 
 ];
