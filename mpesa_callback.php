@@ -6,6 +6,7 @@
 ========================================================= */
 
 require_once __DIR__ . "/db.php";
+require_once __DIR__ . "/mpesa_config.php";
 
 
 /* =========================================================
@@ -108,6 +109,396 @@ function classifyMpesaFailure(
     ===================================================== */
 
     return "Failed";
+}
+
+
+
+/* =========================================================
+   DARAJA STK QUERY VERIFICATION
+
+   A successful callback is not trusted on its own. Before a
+   booking can become Paid, this helper independently asks
+   Daraja for the stored CheckoutRequestID status.
+
+   No credentials or access tokens are written to logs.
+========================================================= */
+
+function verifyMpesaStkTransaction(
+    string $checkoutRequestId
+): array {
+
+    $checkoutRequestId =
+        trim(
+            $checkoutRequestId
+        );
+
+
+    if ($checkoutRequestId === "") {
+
+        return [
+            "verified" => false,
+            "reason" => "Missing CheckoutRequestID"
+        ];
+    }
+
+
+    $requiredConstants = [
+        "MPESA_CONSUMER_KEY",
+        "MPESA_CONSUMER_SECRET",
+        "MPESA_SHORTCODE",
+        "MPESA_PASSKEY",
+        "MPESA_OAUTH_URL",
+        "MPESA_STK_QUERY_URL"
+    ];
+
+
+    foreach ($requiredConstants as $constantName) {
+
+        if (
+            !defined($constantName) ||
+            trim(
+                (string) constant($constantName)
+            ) === ""
+        ) {
+
+            return [
+                "verified" => false,
+                "reason" => "M-Pesa configuration incomplete"
+            ];
+        }
+    }
+
+
+    /* =====================================================
+       GET DARAJA OAUTH TOKEN
+    ===================================================== */
+
+    $credentials =
+        base64_encode(
+            MPESA_CONSUMER_KEY
+            . ":"
+            . MPESA_CONSUMER_SECRET
+        );
+
+
+    $curl =
+        curl_init();
+
+
+    if ($curl === false) {
+
+        return [
+            "verified" => false,
+            "reason" => "Unable to initialize OAuth request"
+        ];
+    }
+
+
+    curl_setopt_array(
+        $curl,
+        [
+
+            CURLOPT_URL =>
+                MPESA_OAUTH_URL,
+
+            CURLOPT_HTTPHEADER => [
+
+                "Authorization: Basic "
+                . $credentials,
+
+                "Accept: application/json"
+
+            ],
+
+            CURLOPT_RETURNTRANSFER =>
+                true,
+
+            CURLOPT_CONNECTTIMEOUT =>
+                10,
+
+            CURLOPT_TIMEOUT =>
+                30
+
+        ]
+    );
+
+
+    $oauthResponse =
+        curl_exec($curl);
+
+
+    $oauthError =
+        curl_error($curl);
+
+
+    $oauthHttpCode =
+        curl_getinfo(
+            $curl,
+            CURLINFO_HTTP_CODE
+        );
+
+
+    curl_close($curl);
+
+
+    if ($oauthResponse === false) {
+
+        error_log(
+            "Sprinter M-Pesa STK Query OAuth connection error: "
+            . $oauthError
+        );
+
+        return [
+            "verified" => false,
+            "reason" => "OAuth connection failed"
+        ];
+    }
+
+
+    $oauthData =
+        json_decode(
+            $oauthResponse,
+            true
+        );
+
+
+    if (
+        !is_array($oauthData) ||
+        $oauthHttpCode < 200 ||
+        $oauthHttpCode >= 300 ||
+        empty(
+            $oauthData["access_token"]
+        )
+    ) {
+
+        error_log(
+            "Sprinter M-Pesa STK Query OAuth failed. HTTP: "
+            . $oauthHttpCode
+        );
+
+        return [
+            "verified" => false,
+            "reason" => "OAuth request failed"
+        ];
+    }
+
+
+    $accessToken =
+        (string) $oauthData["access_token"];
+
+
+    /* =====================================================
+       BUILD STK QUERY REQUEST
+    ===================================================== */
+
+    $timestamp =
+        date(
+            "YmdHis"
+        );
+
+
+    $password =
+        base64_encode(
+            MPESA_SHORTCODE
+            . MPESA_PASSKEY
+            . $timestamp
+        );
+
+
+    $payload = [
+
+        "BusinessShortCode" =>
+            MPESA_SHORTCODE,
+
+        "Password" =>
+            $password,
+
+        "Timestamp" =>
+            $timestamp,
+
+        "CheckoutRequestID" =>
+            $checkoutRequestId
+
+    ];
+
+
+    $jsonPayload =
+        json_encode(
+            $payload
+        );
+
+
+    if ($jsonPayload === false) {
+
+        return [
+            "verified" => false,
+            "reason" => "Unable to encode STK Query request"
+        ];
+    }
+
+
+    /* =====================================================
+       SEND STK QUERY
+    ===================================================== */
+
+    $curl =
+        curl_init();
+
+
+    if ($curl === false) {
+
+        return [
+            "verified" => false,
+            "reason" => "Unable to initialize STK Query"
+        ];
+    }
+
+
+    curl_setopt_array(
+        $curl,
+        [
+
+            CURLOPT_URL =>
+                MPESA_STK_QUERY_URL,
+
+            CURLOPT_HTTPHEADER => [
+
+                "Authorization: Bearer "
+                . $accessToken,
+
+                "Content-Type: application/json",
+
+                "Accept: application/json"
+
+            ],
+
+            CURLOPT_POST =>
+                true,
+
+            CURLOPT_POSTFIELDS =>
+                $jsonPayload,
+
+            CURLOPT_RETURNTRANSFER =>
+                true,
+
+            CURLOPT_CONNECTTIMEOUT =>
+                10,
+
+            CURLOPT_TIMEOUT =>
+                30
+
+        ]
+    );
+
+
+    $queryResponse =
+        curl_exec($curl);
+
+
+    $queryError =
+        curl_error($curl);
+
+
+    $queryHttpCode =
+        curl_getinfo(
+            $curl,
+            CURLINFO_HTTP_CODE
+        );
+
+
+    curl_close($curl);
+
+
+    if ($queryResponse === false) {
+
+        error_log(
+            "Sprinter M-Pesa STK Query connection error: "
+            . $queryError
+        );
+
+        return [
+            "verified" => false,
+            "reason" => "STK Query connection failed"
+        ];
+    }
+
+
+    $queryData =
+        json_decode(
+            $queryResponse,
+            true
+        );
+
+
+    if (
+        !is_array($queryData) ||
+        $queryHttpCode < 200 ||
+        $queryHttpCode >= 300
+    ) {
+
+        error_log(
+            "Sprinter M-Pesa STK Query failed. HTTP: "
+            . $queryHttpCode
+        );
+
+        return [
+            "verified" => false,
+            "reason" => "Invalid STK Query response"
+        ];
+    }
+
+
+    $queryCheckoutRequestId =
+        trim(
+            (string) (
+                $queryData["CheckoutRequestID"]
+                ?? ""
+            )
+        );
+
+
+    if (
+        $queryCheckoutRequestId === "" ||
+        !hash_equals(
+            $checkoutRequestId,
+            $queryCheckoutRequestId
+        )
+    ) {
+
+        return [
+            "verified" => false,
+            "reason" => "STK Query reference mismatch"
+        ];
+    }
+
+
+    if (!array_key_exists("ResultCode", $queryData)) {
+
+        return [
+            "verified" => false,
+            "reason" => "STK Query result is not final"
+        ];
+    }
+
+
+    $queryResultCode =
+        (int) $queryData["ResultCode"];
+
+
+    if ($queryResultCode !== 0) {
+
+        return [
+            "verified" => false,
+            "reason" => "Daraja did not confirm payment success",
+            "result_code" => $queryResultCode
+        ];
+    }
+
+
+    return [
+        "verified" => true,
+        "reason" => "Daraja confirmed payment"
+    ];
 }
 
 
@@ -515,6 +906,55 @@ if ($resultCode !== 0) {
 }
 
 
+
+/* =========================================================
+   INDEPENDENTLY VERIFY SUCCESS WITH DARAJA STK QUERY
+
+   If Daraja cannot confirm the successful transaction, leave
+   the booking Pending. This is safer than accepting an
+   unverified success callback.
+========================================================= */
+
+$queryVerification =
+    verifyMpesaStkTransaction(
+        $checkoutRequestId
+    );
+
+
+if (
+    empty(
+        $queryVerification["verified"]
+    )
+) {
+
+    $verificationReason =
+        trim(
+            (string) (
+                $queryVerification["reason"]
+                ?? "Unknown verification failure"
+            )
+        );
+
+
+    error_log(
+        "Sprinter M-Pesa callback: "
+        . "Daraja STK Query verification failed for booking "
+        . $booking["id"]
+        . ". Reason: "
+        . $verificationReason
+    );
+
+
+    http_response_code(503);
+
+
+    sendMpesaResponse(
+        1,
+        "Payment verification pending"
+    );
+}
+
+
 /* =========================================================
    SUCCESS CALLBACK METADATA
 ========================================================= */
@@ -876,5 +1316,3 @@ sendMpesaResponse(
     0,
     "Callback received"
 );
-
-?>

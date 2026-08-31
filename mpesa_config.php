@@ -39,4 +39,7 @@ define(
     "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest"
 );
 
-?>
+define(
+    "MPESA_STK_QUERY_URL",
+    "https://sandbox.safaricom.co.ke/mpesa/stkpushquery/v1/query"
+);
