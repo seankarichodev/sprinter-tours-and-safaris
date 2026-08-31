@@ -25,136 +25,588 @@ $csrfToken =
 
 
 /* =========================================================
-   POST ACTIONS
+   POST ACTIONS + OWNER AUDIT LOGGING
 ========================================================= */
 
-if (
-    $_SERVER["REQUEST_METHOD"] === "POST"
-) {
+if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     $submittedToken =
         $_POST["csrf_token"]
         ?? "";
 
-
     if (
+        empty($submittedToken) ||
         !hash_equals(
             $csrfToken,
             $submittedToken
         )
     ) {
-
         http_response_code(403);
-
-        exit(
-            "Invalid security token."
-        );
+        exit("Invalid security token.");
     }
 
-
     $action =
-        $_POST["action"]
-        ?? "";
-
+        trim(
+            (string) (
+                $_POST["action"]
+                ?? ""
+            )
+        );
 
     $messageId =
         isset($_POST["message_id"])
             ? (int) $_POST["message_id"]
             : 0;
 
+    $allowedActions = [
+        "mark_read",
+        "mark_unread",
+        "delete"
+    ];
 
-    if ($messageId > 0) {
+    if (
+        $messageId > 0 &&
+        in_array(
+            $action,
+            $allowedActions,
+            true
+        )
+    ) {
 
+        /* Load the message before changing it so the audit
+           record still contains useful information. */
 
-        /* MARK READ */
+        $messageStmt =
+            $conn->prepare(
+                "
+                SELECT
+                    id,
+                    name,
+                    email,
+                    phone,
+                    subject,
+                    message,
+                    status,
+                    created_at
+                FROM messages
+                WHERE id = ?
+                LIMIT 1
+                "
+            );
 
-        if ($action === "mark_read") {
+        if (!$messageStmt) {
+            http_response_code(500);
+            exit("Unable to prepare message action.");
+        }
 
-            $actionStmt =
-                $conn->prepare(
-                    "
-                    UPDATE messages
-                    SET status = 'Read'
-                    WHERE id = ?
-                    "
-                );
+        $messageStmt->bind_param(
+            "i",
+            $messageId
+        );
 
+        $messageStmt->execute();
 
-            if ($actionStmt) {
+        $messageResult =
+            $messageStmt->get_result();
+
+        if (
+            !$messageResult ||
+            $messageResult->num_rows !== 1
+        ) {
+            $messageStmt->close();
+            header("Location: messages.php");
+            exit();
+        }
+
+        $messageBefore =
+            $messageResult->fetch_assoc();
+
+        $messageStmt->close();
+
+        /* Audit actor */
+
+        $auditAdminId =
+            (int) $_SESSION["admin_id"];
+
+        $auditUsername =
+            trim(
+                (string) $_SESSION["admin_username"]
+            );
+
+        $auditRole =
+            strtolower(
+                trim(
+                    (string) $_SESSION["admin_role"]
+                )
+            );
+
+        if (
+            !in_array(
+                $auditRole,
+                ["admin", "owner"],
+                true
+            )
+        ) {
+            http_response_code(403);
+            exit("Invalid administrative role.");
+        }
+
+        $auditIp =
+            $_SERVER["REMOTE_ADDR"]
+            ?? null;
+
+        /* Safe message details */
+
+        $senderName =
+            trim(
+                (string) (
+                    $messageBefore["name"]
+                    ?? ""
+                )
+            );
+
+        $senderEmail =
+            trim(
+                (string) (
+                    $messageBefore["email"]
+                    ?? ""
+                )
+            );
+
+        $subject =
+            trim(
+                (string) (
+                    $messageBefore["subject"]
+                    ?? ""
+                )
+            );
+
+        $oldStatus =
+            trim(
+                (string) (
+                    $messageBefore["status"]
+                    ?? ""
+                )
+            );
+
+        $messagePreviewForAudit =
+            trim(
+                preg_replace(
+                    '/\s+/',
+                    ' ',
+                    (string) (
+                        $messageBefore["message"]
+                        ?? ""
+                    )
+                )
+            );
+
+        if (
+            mb_strlen(
+                $messagePreviewForAudit
+            ) > 120
+        ) {
+            $messagePreviewForAudit =
+                mb_substr(
+                    $messagePreviewForAudit,
+                    0,
+                    120
+                )
+                . "…";
+        }
+
+        /* =====================================================
+           MARK READ
+        ===================================================== */
+
+        if (
+            $action === "mark_read" &&
+            strtolower($oldStatus) !== "read"
+        ) {
+
+            $conn->begin_transaction();
+
+            try {
+
+                $actionStmt =
+                    $conn->prepare(
+                        "
+                        UPDATE messages
+                        SET status = 'Read'
+                        WHERE id = ?
+                        LIMIT 1
+                        "
+                    );
+
+                if (!$actionStmt) {
+                    throw new RuntimeException(
+                        "Unable to prepare message update."
+                    );
+                }
 
                 $actionStmt->bind_param(
                     "i",
                     $messageId
                 );
 
-                $actionStmt->execute();
+                if (!$actionStmt->execute()) {
+                    $actionStmt->close();
+                    throw new RuntimeException(
+                        "Unable to mark message read."
+                    );
+                }
 
                 $actionStmt->close();
+
+                $auditAction =
+                    "Marked message read";
+
+                $auditEntityType =
+                    "message";
+
+                $auditEntityId =
+                    $messageId;
+
+                $auditDetails =
+                    "Marked customer message #"
+                    . $messageId
+                    . " as Read. Sender: "
+                    . ($senderName !== "" ? $senderName : "Unknown")
+                    . " | Email: "
+                    . ($senderEmail !== "" ? $senderEmail : "—")
+                    . " | Subject: "
+                    . ($subject !== "" ? $subject : "General enquiry")
+                    . " | Previous status: "
+                    . ($oldStatus !== "" ? $oldStatus : "Unknown");
+
+                $auditStmt =
+                    $conn->prepare(
+                        "
+                        INSERT INTO admin_audit_log
+                        (
+                            admin_id,
+                            username,
+                            role,
+                            action,
+                            entity_type,
+                            entity_id,
+                            details,
+                            ip_address
+                        )
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        "
+                    );
+
+                if (!$auditStmt) {
+                    throw new RuntimeException(
+                        "Unable to prepare audit record."
+                    );
+                }
+
+                $auditStmt->bind_param(
+                    "issssiss",
+                    $auditAdminId,
+                    $auditUsername,
+                    $auditRole,
+                    $auditAction,
+                    $auditEntityType,
+                    $auditEntityId,
+                    $auditDetails,
+                    $auditIp
+                );
+
+                if (!$auditStmt->execute()) {
+                    $auditStmt->close();
+                    throw new RuntimeException(
+                        "Unable to save audit record."
+                    );
+                }
+
+                $auditStmt->close();
+
+                $conn->commit();
+
+            } catch (Throwable $error) {
+
+                $conn->rollback();
+
+                error_log(
+                    "Mark-read audit failed for message #"
+                    . $messageId
+                    . ": "
+                    . $error->getMessage()
+                );
+
+                http_response_code(500);
+                exit("Unable to update this message safely.");
             }
         }
 
-
-
-        /* MARK UNREAD */
+        /* =====================================================
+           MARK UNREAD
+        ===================================================== */
 
         elseif (
-            $action === "mark_unread"
+            $action === "mark_unread" &&
+            strtolower($oldStatus) !== "unread"
         ) {
 
-            $actionStmt =
-                $conn->prepare(
-                    "
-                    UPDATE messages
-                    SET status = 'Unread'
-                    WHERE id = ?
-                    "
-                );
+            $conn->begin_transaction();
 
+            try {
 
-            if ($actionStmt) {
+                $actionStmt =
+                    $conn->prepare(
+                        "
+                        UPDATE messages
+                        SET status = 'Unread'
+                        WHERE id = ?
+                        LIMIT 1
+                        "
+                    );
+
+                if (!$actionStmt) {
+                    throw new RuntimeException(
+                        "Unable to prepare message update."
+                    );
+                }
 
                 $actionStmt->bind_param(
                     "i",
                     $messageId
                 );
 
-                $actionStmt->execute();
+                if (!$actionStmt->execute()) {
+                    $actionStmt->close();
+                    throw new RuntimeException(
+                        "Unable to mark message unread."
+                    );
+                }
 
                 $actionStmt->close();
+
+                $auditAction =
+                    "Marked message unread";
+
+                $auditEntityType =
+                    "message";
+
+                $auditEntityId =
+                    $messageId;
+
+                $auditDetails =
+                    "Marked customer message #"
+                    . $messageId
+                    . " as Unread. Sender: "
+                    . ($senderName !== "" ? $senderName : "Unknown")
+                    . " | Email: "
+                    . ($senderEmail !== "" ? $senderEmail : "—")
+                    . " | Subject: "
+                    . ($subject !== "" ? $subject : "General enquiry")
+                    . " | Previous status: "
+                    . ($oldStatus !== "" ? $oldStatus : "Unknown");
+
+                $auditStmt =
+                    $conn->prepare(
+                        "
+                        INSERT INTO admin_audit_log
+                        (
+                            admin_id,
+                            username,
+                            role,
+                            action,
+                            entity_type,
+                            entity_id,
+                            details,
+                            ip_address
+                        )
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        "
+                    );
+
+                if (!$auditStmt) {
+                    throw new RuntimeException(
+                        "Unable to prepare audit record."
+                    );
+                }
+
+                $auditStmt->bind_param(
+                    "issssiss",
+                    $auditAdminId,
+                    $auditUsername,
+                    $auditRole,
+                    $auditAction,
+                    $auditEntityType,
+                    $auditEntityId,
+                    $auditDetails,
+                    $auditIp
+                );
+
+                if (!$auditStmt->execute()) {
+                    $auditStmt->close();
+                    throw new RuntimeException(
+                        "Unable to save audit record."
+                    );
+                }
+
+                $auditStmt->close();
+
+                $conn->commit();
+
+            } catch (Throwable $error) {
+
+                $conn->rollback();
+
+                error_log(
+                    "Mark-unread audit failed for message #"
+                    . $messageId
+                    . ": "
+                    . $error->getMessage()
+                );
+
+                http_response_code(500);
+                exit("Unable to update this message safely.");
             }
         }
 
+        /* =====================================================
+           DELETE MESSAGE
+        ===================================================== */
 
+        elseif ($action === "delete") {
 
-        /* DELETE */
+            $conn->begin_transaction();
 
-        elseif (
-            $action === "delete"
-        ) {
+            try {
 
-            $actionStmt =
-                $conn->prepare(
-                    "
-                    DELETE FROM messages
-                    WHERE id = ?
-                    "
-                );
+                $actionStmt =
+                    $conn->prepare(
+                        "
+                        DELETE FROM messages
+                        WHERE id = ?
+                        LIMIT 1
+                        "
+                    );
 
-
-            if ($actionStmt) {
+                if (!$actionStmt) {
+                    throw new RuntimeException(
+                        "Unable to prepare message deletion."
+                    );
+                }
 
                 $actionStmt->bind_param(
                     "i",
                     $messageId
                 );
 
-                $actionStmt->execute();
+                if (!$actionStmt->execute()) {
+                    $actionStmt->close();
+                    throw new RuntimeException(
+                        "Unable to delete message."
+                    );
+                }
+
+                $deletedRows =
+                    $actionStmt->affected_rows;
 
                 $actionStmt->close();
+
+                if ($deletedRows !== 1) {
+                    throw new RuntimeException(
+                        "Message was not deleted."
+                    );
+                }
+
+                $auditAction =
+                    "Deleted message";
+
+                $auditEntityType =
+                    "message";
+
+                $auditEntityId =
+                    $messageId;
+
+                $auditDetails =
+                    "Deleted customer message #"
+                    . $messageId
+                    . ". Sender: "
+                    . ($senderName !== "" ? $senderName : "Unknown")
+                    . " | Email: "
+                    . ($senderEmail !== "" ? $senderEmail : "—")
+                    . " | Subject: "
+                    . ($subject !== "" ? $subject : "General enquiry")
+                    . " | Status: "
+                    . ($oldStatus !== "" ? $oldStatus : "Unknown")
+                    . " | Message preview: "
+                    . (
+                        $messagePreviewForAudit !== ""
+                            ? $messagePreviewForAudit
+                            : "—"
+                    );
+
+                $auditStmt =
+                    $conn->prepare(
+                        "
+                        INSERT INTO admin_audit_log
+                        (
+                            admin_id,
+                            username,
+                            role,
+                            action,
+                            entity_type,
+                            entity_id,
+                            details,
+                            ip_address
+                        )
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        "
+                    );
+
+                if (!$auditStmt) {
+                    throw new RuntimeException(
+                        "Unable to prepare audit record."
+                    );
+                }
+
+                $auditStmt->bind_param(
+                    "issssiss",
+                    $auditAdminId,
+                    $auditUsername,
+                    $auditRole,
+                    $auditAction,
+                    $auditEntityType,
+                    $auditEntityId,
+                    $auditDetails,
+                    $auditIp
+                );
+
+                if (!$auditStmt->execute()) {
+                    $auditStmt->close();
+                    throw new RuntimeException(
+                        "Unable to save audit record."
+                    );
+                }
+
+                $auditStmt->close();
+
+                $conn->commit();
+
+            } catch (Throwable $error) {
+
+                $conn->rollback();
+
+                error_log(
+                    "Message deletion audit failed for message #"
+                    . $messageId
+                    . ": "
+                    . $error->getMessage()
+                );
+
+                http_response_code(500);
+                exit("Unable to delete this message safely.");
             }
         }
     }
-
 
     /*
      * POST / REDIRECT / GET
@@ -165,58 +617,46 @@ if (
 
     $redirectParameters = [];
 
-
     if (
         !empty($_POST["return_search"])
     ) {
-
         $redirectParameters["search"] =
             $_POST["return_search"];
     }
 
-
     if (
         !empty($_POST["return_status"])
     ) {
-
         $redirectParameters["status"] =
             $_POST["return_status"];
     }
 
-
     if (
         !empty($_POST["return_limit"])
     ) {
-
         $redirectParameters["limit"] =
             (int) $_POST["return_limit"];
     }
 
-
     if (
         !empty($_POST["return_page"])
     ) {
-
         $redirectParameters["page"] =
             (int) $_POST["return_page"];
     }
 
-
     $redirect =
         "messages.php";
-
 
     if (
         !empty($redirectParameters)
     ) {
-
         $redirect .=
             "?"
             . http_build_query(
                 $redirectParameters
             );
     }
-
 
     header(
         "Location: "

@@ -201,24 +201,144 @@ if (
             );
 
 
-            if ($stmt->execute()) {
+           if ($stmt->execute()) {
 
-                $stmt->close();
+    $stmt->close();
 
 
-                header(
-                    "Location: bookings.php"
-                );
+    /* =====================================================
+       AUDIT LOG — BOOKING UPDATED
+    ===================================================== */
 
-                exit();
+    $auditAdminId =
+        isset($_SESSION["admin_id"])
+            ? (int) $_SESSION["admin_id"]
+            : null;
 
-            } else {
+    $auditUsername =
+        isset($_SESSION["admin_username"])
+            ? trim((string) $_SESSION["admin_username"])
+            : "Unknown";
 
-                $message =
-                    "Unable to update this booking.";
+    $auditRole =
+        isset($_SESSION["admin_role"])
+            ? strtolower(trim((string) $_SESSION["admin_role"]))
+            : "admin";
 
-                $stmt->close();
-            }
+
+    /*
+     * The audit table only accepts:
+     * admin
+     * owner
+     */
+    if (!in_array(
+        $auditRole,
+        ["admin", "owner"],
+        true
+    )) {
+
+        $auditRole = "admin";
+    }
+
+
+    $auditAction =
+        "Updated booking";
+
+    $auditEntityType =
+        "booking";
+
+    $auditEntityId =
+        $bookingId;
+
+    $auditDetails =
+        "Updated customer/travel details. "
+        . "Customer: "
+        . $name
+        . " | Email: "
+        . $email
+        . " | Travel date: "
+        . $date
+        . " | Travel time: "
+        . $time
+        . " | Payment method: "
+        . $payment;
+
+
+    $auditIp =
+        $_SERVER["REMOTE_ADDR"]
+        ?? null;
+
+
+    $auditStmt =
+        $conn->prepare(
+            "
+                INSERT INTO admin_audit_log
+                (
+                    admin_id,
+                    username,
+                    role,
+                    action,
+                    entity_type,
+                    entity_id,
+                    details,
+                    ip_address
+                )
+
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            "
+        );
+
+
+    if ($auditStmt) {
+
+        $auditStmt->bind_param(
+            "issssiss",
+            $auditAdminId,
+            $auditUsername,
+            $auditRole,
+            $auditAction,
+            $auditEntityType,
+            $auditEntityId,
+            $auditDetails,
+            $auditIp
+        );
+
+        /*
+         * Booking update has already succeeded.
+         * Audit failure must not destroy the booking update.
+         */
+        if (!$auditStmt->execute()) {
+
+            error_log(
+                "Audit logging failed for booking #"
+                . $bookingId
+            );
+        }
+
+        $auditStmt->close();
+
+    } else {
+
+        error_log(
+            "Unable to prepare audit log for booking #"
+            . $bookingId
+        );
+    }
+
+
+    header(
+        "Location: bookings.php"
+    );
+
+    exit();
+
+} else {
+
+    $message =
+        "Unable to update this booking.";
+
+    $stmt->close();
+}
         }
     }
 }
