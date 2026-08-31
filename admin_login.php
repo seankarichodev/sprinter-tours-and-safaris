@@ -2627,6 +2627,50 @@ if (
             }
         }
 
+        /* =================================================
+   OWNER LOGIN INPUT VISIBILITY FIX
+================================================= */
+
+body.owner-mode .field-control input {
+    background: #171313 !important;
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+    border: 1px solid rgba(213, 159, 66, 0.55) !important;
+    caret-color: #f2cd73;
+}
+
+body.owner-mode .field-control input::placeholder {
+    color: #b8aaa4 !important;
+    opacity: 1;
+}
+
+body.owner-mode .field-control > i {
+    color: #d8bd76 !important;
+}
+
+body.owner-mode .password-toggle {
+    color: #e1d7d2 !important;
+}
+
+body.owner-mode .field-control input:focus {
+    background: #1b1515 !important;
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+    border-color: #e23b3b !important;
+    box-shadow: 0 0 0 4px rgba(226, 59, 59, 0.12) !important;
+}
+
+/* Chrome / Brave / Edge autofill */
+body.owner-mode .field-control input:-webkit-autofill,
+body.owner-mode .field-control input:-webkit-autofill:hover,
+body.owner-mode .field-control input:-webkit-autofill:focus,
+body.owner-mode .field-control input:-webkit-autofill:active {
+    -webkit-text-fill-color: #ffffff !important;
+    caret-color: #f2cd73 !important;
+    -webkit-box-shadow: 0 0 0 1000px #171313 inset !important;
+    box-shadow: 0 0 0 1000px #171313 inset !important;
+    border-color: rgba(213, 159, 66, 0.55) !important;
+}
     </style>
 
 </head>

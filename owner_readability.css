@@ -1,0 +1,205 @@
+/* =========================================================
+   SPRINTER TOURS & SAFARIS
+   OWNER PORTAL READABILITY FIX
+========================================================= */
+
+/* BRAND */
+.owner-brand strong,
+.brand strong {
+    font-size: 15px !important;
+    line-height: 1.35 !important;
+}
+
+.owner-brand span,
+.brand span {
+    font-size: 10px !important;
+    line-height: 1.4 !important;
+}
+
+/* SIDEBAR SECTION LABELS */
+.owner-nav-label,
+.nav-label {
+    font-size: 10.5px !important;
+    line-height: 1.4 !important;
+    letter-spacing: 0.12em !important;
+}
+
+/* SIDEBAR LINKS */
+.owner-nav a,
+.nav a,
+.owner-sidebar a,
+.sidebar-link {
+    font-size: 14px !important;
+    line-height: 1.35 !important;
+    font-weight: 600 !important;
+}
+
+/* SIDEBAR ICONS */
+.owner-nav a i,
+.nav a i {
+    font-size: 14px !important;
+}
+
+/* OWNER PROFILE */
+.owner-profile strong,
+.profile strong,
+.owner-user-name,
+.sidebar-user-name {
+    font-size: 13px !important;
+    line-height: 1.35 !important;
+}
+
+.owner-profile span,
+.profile span,
+.owner-user-role,
+.sidebar-user-role {
+    font-size: 10px !important;
+    line-height: 1.4 !important;
+}
+
+/* BUTTONS */
+.owner-button,
+.btn {
+    font-size: 12.5px !important;
+    line-height: 1.35 !important;
+}
+
+/* PAGE HEADINGS */
+.owner-heading small,
+.heading small,
+.hero small {
+    font-size: 11px !important;
+    line-height: 1.4 !important;
+}
+
+.owner-heading p,
+.heading p,
+.hero p {
+    font-size: 13.5px !important;
+    line-height: 1.7 !important;
+}
+
+/* CARDS / STATS */
+.owner-card,
+.card,
+.stat,
+.metric,
+.owner-stat,
+.status-card {
+    font-size: 13px !important;
+}
+
+.owner-card small,
+.card small,
+.stat small,
+.metric small,
+.owner-stat small,
+.status-card small {
+    font-size: 11px !important;
+    line-height: 1.45 !important;
+}
+
+.owner-card p,
+.card p,
+.stat p,
+.metric p,
+.owner-stat p,
+.status-card p {
+    font-size: 12.5px !important;
+    line-height: 1.6 !important;
+}
+
+/* TABLES */
+.owner-table,
+table {
+    font-size: 12.5px !important;
+}
+
+.owner-table th,
+table th {
+    font-size: 10.5px !important;
+    line-height: 1.4 !important;
+}
+
+.owner-table td,
+table td {
+    font-size: 12.5px !important;
+    line-height: 1.5 !important;
+}
+
+/* SECONDARY TABLE TEXT */
+.owner-table td small,
+table td small,
+.owner-table td span,
+table td span {
+    font-size: 10.5px !important;
+    line-height: 1.45 !important;
+}
+
+/* AUDIT ACTIVITY */
+.audit-item strong,
+.audit-row strong,
+.audit-entry strong,
+.audit-body strong {
+    font-size: 13px !important;
+    line-height: 1.45 !important;
+}
+
+.audit-details,
+.audit-item p,
+.audit-row p,
+.audit-entry p,
+.audit-body span {
+    font-size: 11.5px !important;
+    line-height: 1.6 !important;
+}
+
+/* FILTERS / INPUTS */
+.filters,
+.filters input,
+.filters select,
+.filters button,
+select,
+input[type="search"] {
+    font-size: 12px !important;
+}
+
+/* SMALL HELPER TEXT */
+.empty,
+.muted,
+.helper,
+.caption {
+    font-size: 11.5px !important;
+    line-height: 1.6 !important;
+}
+
+/* MOBILE */
+@media (max-width: 860px) {
+
+    .owner-nav a,
+    .nav a,
+    .owner-sidebar a,
+    .sidebar-link {
+        font-size: 14px !important;
+    }
+
+    .owner-table td,
+    table td {
+        font-size: 12px !important;
+    }
+
+    .audit-item strong,
+    .audit-row strong,
+    .audit-entry strong,
+    .audit-body strong {
+        font-size: 13px !important;
+    }
+
+    .audit-details,
+    .audit-item p,
+    .audit-row p,
+    .audit-entry p,
+    .audit-body span {
+        font-size: 11.5px !important;
+    }
+}

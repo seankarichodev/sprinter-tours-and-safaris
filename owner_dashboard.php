@@ -1311,7 +1311,7 @@ if (
         }
 
     </style>
-
+<link rel="stylesheet" href="owner_readability.css">
 </head>
 
 <body>

@@ -1092,6 +1092,7 @@ function reportEscape(
             .stats{grid-template-columns:1fr;}
         }
     </style>
+    <link rel="stylesheet" href="owner_readability.css">
 </head>
 
 <body>
