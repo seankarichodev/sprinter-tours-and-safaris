@@ -1,6 +1,7 @@
-<?php
 
+<?php
 require_once __DIR__ . "/admin_auth.php";
+requireAdmin();
 require_once __DIR__ . "/db.php";
 
 
@@ -60,8 +61,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     $allowedActions = [
         "mark_read",
-        "mark_unread",
-        "delete"
+        "mark_unread"
     ];
 
     if (
@@ -469,143 +469,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             }
         }
 
-        /* =====================================================
-           DELETE MESSAGE
-        ===================================================== */
-
-        elseif ($action === "delete") {
-
-            $conn->begin_transaction();
-
-            try {
-
-                $actionStmt =
-                    $conn->prepare(
-                        "
-                        DELETE FROM messages
-                        WHERE id = ?
-                        LIMIT 1
-                        "
-                    );
-
-                if (!$actionStmt) {
-                    throw new RuntimeException(
-                        "Unable to prepare message deletion."
-                    );
-                }
-
-                $actionStmt->bind_param(
-                    "i",
-                    $messageId
-                );
-
-                if (!$actionStmt->execute()) {
-                    $actionStmt->close();
-                    throw new RuntimeException(
-                        "Unable to delete message."
-                    );
-                }
-
-                $deletedRows =
-                    $actionStmt->affected_rows;
-
-                $actionStmt->close();
-
-                if ($deletedRows !== 1) {
-                    throw new RuntimeException(
-                        "Message was not deleted."
-                    );
-                }
-
-                $auditAction =
-                    "Deleted message";
-
-                $auditEntityType =
-                    "message";
-
-                $auditEntityId =
-                    $messageId;
-
-                $auditDetails =
-                    "Deleted customer message #"
-                    . $messageId
-                    . ". Sender: "
-                    . ($senderName !== "" ? $senderName : "Unknown")
-                    . " | Email: "
-                    . ($senderEmail !== "" ? $senderEmail : "—")
-                    . " | Subject: "
-                    . ($subject !== "" ? $subject : "General enquiry")
-                    . " | Status: "
-                    . ($oldStatus !== "" ? $oldStatus : "Unknown")
-                    . " | Message preview: "
-                    . (
-                        $messagePreviewForAudit !== ""
-                            ? $messagePreviewForAudit
-                            : "—"
-                    );
-
-                $auditStmt =
-                    $conn->prepare(
-                        "
-                        INSERT INTO admin_audit_log
-                        (
-                            admin_id,
-                            username,
-                            role,
-                            action,
-                            entity_type,
-                            entity_id,
-                            details,
-                            ip_address
-                        )
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                        "
-                    );
-
-                if (!$auditStmt) {
-                    throw new RuntimeException(
-                        "Unable to prepare audit record."
-                    );
-                }
-
-                $auditStmt->bind_param(
-                    "issssiss",
-                    $auditAdminId,
-                    $auditUsername,
-                    $auditRole,
-                    $auditAction,
-                    $auditEntityType,
-                    $auditEntityId,
-                    $auditDetails,
-                    $auditIp
-                );
-
-                if (!$auditStmt->execute()) {
-                    $auditStmt->close();
-                    throw new RuntimeException(
-                        "Unable to save audit record."
-                    );
-                }
-
-                $auditStmt->close();
-
-                $conn->commit();
-
-            } catch (Throwable $error) {
-
-                $conn->rollback();
-
-                error_log(
-                    "Message deletion audit failed for message #"
-                    . $messageId
-                    . ": "
-                    . $error->getMessage()
-                );
-
-                http_response_code(500);
-                exit("Unable to delete this message safely.");
-            }
-        }
     }
 
     /*
@@ -1170,6 +1033,154 @@ function senderInitials(
         rel="stylesheet"
         href="admin.css"
     >
+
+
+    <style>
+        body.message-modal-open{
+            overflow:hidden;
+        }
+
+        .admin-message-view-btn{
+            border:0;
+            background:none;
+            padding:0;
+            cursor:pointer;
+        }
+
+        .admin-message-modal-backdrop{
+            position:fixed;
+            z-index:9999;
+            inset:0;
+            display:none;
+            align-items:center;
+            justify-content:center;
+            padding:24px;
+            background:rgba(8,24,18,.58);
+            backdrop-filter:blur(5px);
+        }
+
+        .admin-message-modal-backdrop.open{
+            display:flex;
+        }
+
+        .admin-message-modal{
+            width:min(760px,100%);
+            max-height:88vh;
+            overflow:auto;
+            border:1px solid var(--admin-border);
+            border-radius:18px;
+            background:#fff;
+            box-shadow:0 28px 90px rgba(14,42,31,.24);
+        }
+
+        .admin-message-modal-head{
+            position:sticky;
+            top:0;
+            z-index:2;
+            display:flex;
+            align-items:flex-start;
+            justify-content:space-between;
+            gap:16px;
+            padding:20px 22px;
+            border-bottom:1px solid var(--admin-border);
+            background:rgba(255,255,255,.97);
+            backdrop-filter:blur(10px);
+        }
+
+        .admin-message-modal-head small{
+            display:block;
+            margin-bottom:5px;
+            color:var(--admin-gold);
+            font-size:9px;
+            font-weight:800;
+            letter-spacing:1.2px;
+            text-transform:uppercase;
+        }
+
+        .admin-message-modal-head h3{
+            margin:0;
+            color:var(--admin-text);
+            font-size:23px;
+        }
+
+        .admin-message-modal-close{
+            width:38px;
+            height:38px;
+            flex:0 0 38px;
+            border:1px solid var(--admin-border);
+            border-radius:10px;
+            background:#fbfaf7;
+            color:var(--admin-text);
+            cursor:pointer;
+        }
+
+        .admin-message-modal-body{
+            padding:22px;
+        }
+
+        .admin-message-meta{
+            display:grid;
+            grid-template-columns:repeat(2,minmax(0,1fr));
+            gap:12px;
+            margin-bottom:18px;
+        }
+
+        .admin-message-meta-card{
+            padding:14px;
+            border:1px solid var(--admin-border);
+            border-radius:12px;
+            background:#fbfaf7;
+        }
+
+        .admin-message-meta-card span{
+            display:block;
+            margin-bottom:6px;
+            color:var(--admin-muted);
+            font-size:9px;
+            font-weight:800;
+            letter-spacing:1px;
+            text-transform:uppercase;
+        }
+
+        .admin-message-meta-card strong{
+            display:block;
+            color:var(--admin-text);
+            font-size:12px;
+            word-break:break-word;
+        }
+
+        .admin-message-full{
+            padding:18px;
+            border:1px solid var(--admin-border);
+            border-radius:13px;
+            background:#fcfbf8;
+            color:var(--admin-text);
+            font-size:13px;
+            line-height:1.75;
+            white-space:pre-wrap;
+            overflow-wrap:anywhere;
+        }
+
+        .admin-message-modal-note{
+            margin:14px 0 0;
+            padding:12px 14px;
+            border-radius:11px;
+            background:var(--admin-green-soft);
+            color:var(--admin-green-dark);
+            font-size:11px;
+            line-height:1.55;
+        }
+
+        @media(max-width:700px){
+            .admin-message-meta{
+                grid-template-columns:1fr;
+            }
+
+            .admin-message-modal-backdrop{
+                padding:12px;
+            }
+        }
+    </style>
 
 </head>
 
@@ -1885,7 +1896,6 @@ function senderInitials(
 
                                     <td>
 
-
                                         <div
                                             style="
                                                 display:flex;
@@ -1895,11 +1905,24 @@ function senderInitials(
                                             "
                                         >
 
+                                            <button
+                                                type="button"
+                                                class="admin-action-link admin-action-view admin-message-view-btn js-view-message"
+                                                data-id="<?php echo (int) $messageRow["id"]; ?>"
+                                                data-name="<?php echo messageEscape($senderName !== "" ? $senderName : "Unknown customer"); ?>"
+                                                data-email="<?php echo messageEscape($messageRow["email"] ?? "—"); ?>"
+                                                data-phone="<?php echo messageEscape($messageRow["phone"] ?? "—"); ?>"
+                                                data-subject="<?php echo messageEscape($subject !== "" ? $subject : "General enquiry"); ?>"
+                                                data-status="<?php echo messageEscape($isUnread ? "Unread" : "Read"); ?>"
+                                                data-received="<?php echo messageEscape($received ? date("d M Y H:i", strtotime($received)) : "—"); ?>"
+                                                data-message="<?php echo messageEscape($fullMessage); ?>"
+                                            >
+                                                <i class="fa-regular fa-eye"></i>
+                                                View
+                                            </button>
 
-                                            <?php if (
-                                                $isUnread
-                                            ): ?>
 
+                                            <?php if ($isUnread): ?>
 
                                                 <form
                                                     method="POST"
@@ -1949,7 +1972,6 @@ function senderInitials(
                                                         value="<?php echo $page; ?>"
                                                     >
 
-
                                                     <button
                                                         type="submit"
                                                         class="admin-action-link admin-action-edit"
@@ -1960,18 +1982,13 @@ function senderInitials(
                                                             cursor:pointer;
                                                         "
                                                     >
-
                                                         <i class="fa-solid fa-check"></i>
-
                                                         Mark read
-
                                                     </button>
 
                                                 </form>
 
-
                                             <?php else: ?>
-
 
                                                 <form
                                                     method="POST"
@@ -2021,7 +2038,6 @@ function senderInitials(
                                                         value="<?php echo $page; ?>"
                                                     >
 
-
                                                     <button
                                                         type="submit"
                                                         class="admin-action-link admin-action-view"
@@ -2032,93 +2048,13 @@ function senderInitials(
                                                             cursor:pointer;
                                                         "
                                                     >
-
                                                         <i class="fa-regular fa-envelope"></i>
-
-                                                        Unread
-
+                                                        Mark unread
                                                     </button>
 
                                                 </form>
 
-
                                             <?php endif; ?>
-
-
-
-                                            <form
-                                                method="POST"
-                                                action="messages.php"
-                                                style="margin:0;"
-                                                onsubmit="
-                                                    return confirm(
-                                                        'Delete this customer message?'
-                                                    );
-                                                "
-                                            >
-
-                                                <input
-                                                    type="hidden"
-                                                    name="csrf_token"
-                                                    value="<?php echo messageEscape($csrfToken); ?>"
-                                                >
-
-                                                <input
-                                                    type="hidden"
-                                                    name="action"
-                                                    value="delete"
-                                                >
-
-                                                <input
-                                                    type="hidden"
-                                                    name="message_id"
-                                                    value="<?php echo (int) $messageRow["id"]; ?>"
-                                                >
-
-                                                <input
-                                                    type="hidden"
-                                                    name="return_search"
-                                                    value="<?php echo messageEscape($search); ?>"
-                                                >
-
-                                                <input
-                                                    type="hidden"
-                                                    name="return_status"
-                                                    value="<?php echo messageEscape($statusFilter); ?>"
-                                                >
-
-                                                <input
-                                                    type="hidden"
-                                                    name="return_limit"
-                                                    value="<?php echo $limit; ?>"
-                                                >
-
-                                                <input
-                                                    type="hidden"
-                                                    name="return_page"
-                                                    value="<?php echo $page; ?>"
-                                                >
-
-
-                                                <button
-                                                    type="submit"
-                                                    class="admin-action-link admin-action-delete"
-                                                    style="
-                                                        border:0;
-                                                        background:none;
-                                                        padding:0;
-                                                        cursor:pointer;
-                                                    "
-                                                >
-
-                                                    <i class="fa-solid fa-trash"></i>
-
-                                                    Delete
-
-                                                </button>
-
-                                            </form>
-
 
                                         </div>
 
@@ -2238,6 +2174,95 @@ function senderInitials(
 
 
 
+
+<div
+    class="admin-message-modal-backdrop"
+    id="adminMessageModal"
+    aria-hidden="true"
+>
+    <section
+        class="admin-message-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="adminMessageModalSubject"
+    >
+
+        <div class="admin-message-modal-head">
+
+            <div>
+                <small id="adminMessageModalReference">
+                    Customer Message
+                </small>
+
+                <h3 id="adminMessageModalSubject">
+                    Message details
+                </h3>
+            </div>
+
+            <button
+                type="button"
+                class="admin-message-modal-close"
+                id="adminMessageModalClose"
+                aria-label="Close message"
+            >
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+
+        </div>
+
+        <div class="admin-message-modal-body">
+
+            <div class="admin-message-meta">
+
+                <div class="admin-message-meta-card">
+                    <span>Customer</span>
+                    <strong id="adminMessageModalName">—</strong>
+                </div>
+
+                <div class="admin-message-meta-card">
+                    <span>Email</span>
+                    <strong id="adminMessageModalEmail">—</strong>
+                </div>
+
+                <div class="admin-message-meta-card">
+                    <span>Phone</span>
+                    <strong id="adminMessageModalPhone">—</strong>
+                </div>
+
+                <div class="admin-message-meta-card">
+                    <span>Received</span>
+                    <strong id="adminMessageModalReceived">—</strong>
+                </div>
+
+                <div class="admin-message-meta-card">
+                    <span>Status</span>
+                    <strong id="adminMessageModalStatus">—</strong>
+                </div>
+
+                <div class="admin-message-meta-card">
+                    <span>Message ID</span>
+                    <strong id="adminMessageModalId">—</strong>
+                </div>
+
+            </div>
+
+            <div
+                class="admin-message-full"
+                id="adminMessageModalBody"
+            >—</div>
+
+            <p class="admin-message-modal-note">
+                <i class="fa-solid fa-clipboard-check"></i>
+                Opening a message is view-only. Use the separate
+                Mark read / Mark unread controls to change its operational status.
+            </p>
+
+        </div>
+
+    </section>
+</div>
+
+
 <script>
 
 const sidebar =
@@ -2269,6 +2294,165 @@ if (
     );
 
 }
+
+
+const messageModal =
+    document.getElementById(
+        "adminMessageModal"
+    );
+
+const messageModalClose =
+    document.getElementById(
+        "adminMessageModalClose"
+    );
+
+const messageModalFields = {
+    reference: document.getElementById("adminMessageModalReference"),
+    subject: document.getElementById("adminMessageModalSubject"),
+    name: document.getElementById("adminMessageModalName"),
+    email: document.getElementById("adminMessageModalEmail"),
+    phone: document.getElementById("adminMessageModalPhone"),
+    received: document.getElementById("adminMessageModalReceived"),
+    status: document.getElementById("adminMessageModalStatus"),
+    id: document.getElementById("adminMessageModalId"),
+    message: document.getElementById("adminMessageModalBody")
+};
+
+function openAdminMessage(button) {
+
+    messageModalFields.reference.textContent =
+        "Customer Message #"
+        + (
+            button.dataset.id
+            || "—"
+        );
+
+    messageModalFields.subject.textContent =
+        button.dataset.subject
+        || "General enquiry";
+
+    messageModalFields.name.textContent =
+        button.dataset.name
+        || "—";
+
+    messageModalFields.email.textContent =
+        button.dataset.email
+        || "—";
+
+    messageModalFields.phone.textContent =
+        button.dataset.phone
+        || "—";
+
+    messageModalFields.received.textContent =
+        button.dataset.received
+        || "—";
+
+    messageModalFields.status.textContent =
+        button.dataset.status
+        || "—";
+
+    messageModalFields.id.textContent =
+        "#"
+        + (
+            button.dataset.id
+            || "—"
+        );
+
+    messageModalFields.message.textContent =
+        button.dataset.message
+        || "—";
+
+    messageModal.classList.add(
+        "open"
+    );
+
+    messageModal.setAttribute(
+        "aria-hidden",
+        "false"
+    );
+
+    document.body.classList.add(
+        "message-modal-open"
+    );
+}
+
+function closeAdminMessage() {
+
+    if (!messageModal) {
+        return;
+    }
+
+    messageModal.classList.remove(
+        "open"
+    );
+
+    messageModal.setAttribute(
+        "aria-hidden",
+        "true"
+    );
+
+    document.body.classList.remove(
+        "message-modal-open"
+    );
+}
+
+document
+    .querySelectorAll(
+        ".js-view-message"
+    )
+    .forEach(
+        function (button) {
+
+            button.addEventListener(
+                "click",
+                function () {
+                    openAdminMessage(
+                        button
+                    );
+                }
+            );
+        }
+    );
+
+if (messageModalClose) {
+
+    messageModalClose.addEventListener(
+        "click",
+        closeAdminMessage
+    );
+}
+
+if (messageModal) {
+
+    messageModal.addEventListener(
+        "click",
+        function (event) {
+
+            if (
+                event.target
+                === messageModal
+            ) {
+                closeAdminMessage();
+            }
+        }
+    );
+}
+
+document.addEventListener(
+    "keydown",
+    function (event) {
+
+        if (
+            event.key === "Escape"
+            && messageModal
+            && messageModal.classList.contains(
+                "open"
+            )
+        ) {
+            closeAdminMessage();
+        }
+    }
+);
 
 </script>
 

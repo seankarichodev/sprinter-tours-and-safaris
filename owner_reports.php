@@ -31,16 +31,15 @@ if (
    SUMMARY STATISTICS
 ========================================================= */
 
-$summarySql =
-    "
+$summarySql = "
     SELECT
-
-        COUNT(*) AS total_bookings,
+        SUM(CASE WHEN amount > 1 THEN 1 ELSE 0 END) AS total_bookings,
 
         COALESCE(
             SUM(
                 CASE
-                    WHEN LOWER(payment_status) = 'paid'
+                    WHEN LOWER(COALESCE(payment_status,'')) = 'paid'
+                         AND amount > 1
                     THEN amount
                     ELSE 0
                 END
@@ -50,7 +49,8 @@ $summarySql =
 
         SUM(
             CASE
-                WHEN LOWER(payment_status) = 'paid'
+                WHEN LOWER(COALESCE(payment_status,'')) = 'paid'
+                     AND amount > 1
                 THEN 1
                 ELSE 0
             END
@@ -58,197 +58,124 @@ $summarySql =
 
         SUM(
             CASE
-                WHEN LOWER(payment_status) = 'pending'
+                WHEN LOWER(COALESCE(payment_status,'')) = 'pending'
+                     AND amount > 1
                 THEN 1
                 ELSE 0
             END
-        ) AS pending_bookings
+        ) AS pending_bookings,
+
+        COALESCE(
+            SUM(
+                CASE
+                    WHEN LOWER(COALESCE(payment_status,'')) = 'cancelled'
+                         AND amount > 1
+                    THEN amount
+                    ELSE 0
+                END
+            ),
+            0
+        ) AS cancelled_value,
+
+        SUM(
+            CASE
+                WHEN amount <= 1
+                THEN 1
+                ELSE 0
+            END
+        ) AS test_transactions
 
     FROM bookings
-
     WHERE YEAR(created_at) = ?
-    ";
-
-
-$summaryStmt =
-    $conn->prepare(
-        $summarySql
-    );
-
+";
 
 $summary = [
     "total_bookings" => 0,
     "total_revenue" => 0,
     "paid_bookings" => 0,
-    "pending_bookings" => 0
+    "pending_bookings" => 0,
+    "cancelled_value" => 0,
+    "test_transactions" => 0
 ];
 
+$summaryStmt = $conn->prepare($summarySql);
 
 if ($summaryStmt) {
-
-    $summaryStmt->bind_param(
-        "i",
-        $year
-    );
-
-
+    $summaryStmt->bind_param("i", $year);
     $summaryStmt->execute();
+    $summaryResult = $summaryStmt->get_result();
 
-
-    $summaryResult =
-        $summaryStmt->get_result();
-
-
-    if ($summaryResult) {
-
-        $row =
-            $summaryResult
-            ->fetch_assoc();
-
-
-        $summary["total_bookings"] =
-            (int) (
-                $row["total_bookings"]
-                ?? 0
-            );
-
-
-        $summary["total_revenue"] =
-            (float) (
-                $row["total_revenue"]
-                ?? 0
-            );
-
-
-        $summary["paid_bookings"] =
-            (int) (
-                $row["paid_bookings"]
-                ?? 0
-            );
-
-
-        $summary["pending_bookings"] =
-            (int) (
-                $row["pending_bookings"]
-                ?? 0
-            );
+    if ($summaryResult && $row = $summaryResult->fetch_assoc()) {
+        $summary["total_bookings"] = (int)($row["total_bookings"] ?? 0);
+        $summary["total_revenue"] = (float)($row["total_revenue"] ?? 0);
+        $summary["paid_bookings"] = (int)($row["paid_bookings"] ?? 0);
+        $summary["pending_bookings"] = (int)($row["pending_bookings"] ?? 0);
+        $summary["cancelled_value"] = (float)($row["cancelled_value"] ?? 0);
+        $summary["test_transactions"] = (int)($row["test_transactions"] ?? 0);
     }
-
 
     $summaryStmt->close();
 }
 
+$averageBookingValue =
+    $summary["paid_bookings"] > 0
+        ? $summary["total_revenue"] / $summary["paid_bookings"]
+        : 0;
 
 
 /* =========================================================
    MONTHLY BOOKINGS + REVENUE
 ========================================================= */
 
-$monthlyBookings =
-    array_fill(
-        1,
-        12,
-        0
-    );
+$monthlyBookings = array_fill(1, 12, 0);
+$monthlyRevenue = array_fill(1, 12, 0);
 
+$monthlyStmt = $conn->prepare("
+    SELECT
+        MONTH(created_at) AS month_number,
 
-$monthlyRevenue =
-    array_fill(
-        1,
-        12,
-        0
-    );
+        SUM(
+            CASE
+                WHEN amount > 1
+                THEN 1
+                ELSE 0
+            END
+        ) AS total_bookings,
 
+        COALESCE(
+            SUM(
+                CASE
+                    WHEN LOWER(COALESCE(payment_status,'')) = 'paid'
+                         AND amount > 1
+                    THEN amount
+                    ELSE 0
+                END
+            ),
+            0
+        ) AS revenue
 
-$monthlyStmt =
-    $conn->prepare(
-        "
-        SELECT
-
-            MONTH(created_at)
-                AS month_number,
-
-            COUNT(*)
-                AS total_bookings,
-
-            COALESCE(
-                SUM(
-                    CASE
-                        WHEN LOWER(payment_status) = 'paid'
-                        THEN amount
-                        ELSE 0
-                    END
-                ),
-                0
-            )
-                AS revenue
-
-        FROM bookings
-
-        WHERE YEAR(created_at) = ?
-
-        GROUP BY MONTH(created_at)
-
-        ORDER BY MONTH(created_at)
-        "
-    );
-
+    FROM bookings
+    WHERE YEAR(created_at) = ?
+    GROUP BY MONTH(created_at)
+    ORDER BY MONTH(created_at)
+");
 
 if ($monthlyStmt) {
-
-    $monthlyStmt->bind_param(
-        "i",
-        $year
-    );
-
-
+    $monthlyStmt->bind_param("i", $year);
     $monthlyStmt->execute();
+    $monthlyResult = $monthlyStmt->get_result();
 
+    while ($monthlyResult && $row = $monthlyResult->fetch_assoc()) {
+        $monthNumber = (int)($row["month_number"] ?? 0);
 
-    $monthlyResult =
-        $monthlyStmt->get_result();
-
-
-    while (
-        $monthlyResult
-        &&
-        $row =
-            $monthlyResult
-            ->fetch_assoc()
-    ) {
-
-        $monthNumber =
-            (int) (
-                $row["month_number"]
-                ?? 0
-            );
-
-
-        if (
-            $monthNumber >= 1
-            &&
-            $monthNumber <= 12
-        ) {
-
-            $monthlyBookings[$monthNumber] =
-                (int) (
-                    $row["total_bookings"]
-                    ?? 0
-                );
-
-
-            $monthlyRevenue[$monthNumber] =
-                (float) (
-                    $row["revenue"]
-                    ?? 0
-                );
+        if ($monthNumber >= 1 && $monthNumber <= 12) {
+            $monthlyBookings[$monthNumber] = (int)($row["total_bookings"] ?? 0);
+            $monthlyRevenue[$monthNumber] = (float)($row["revenue"] ?? 0);
         }
     }
 
-
     $monthlyStmt->close();
 }
-
 
 
 /* =========================================================
@@ -257,89 +184,50 @@ if ($monthlyStmt) {
 
 $tourPerformance = [];
 
+$tourStmt = $conn->prepare("
+    SELECT
+        COALESCE(NULLIF(TRIM(tour_name), ''), 'Not specified') AS tour_name,
 
-$tourStmt =
-    $conn->prepare(
-        "
-        SELECT
+        SUM(
+            CASE
+                WHEN amount > 1
+                THEN 1
+                ELSE 0
+            END
+        ) AS total_bookings,
 
-            COALESCE(
-                NULLIF(
-                    TRIM(tour_name),
-                    ''
-                ),
-                'Not specified'
-            )
-                AS tour_name,
+        COALESCE(
+            SUM(
+                CASE
+                    WHEN LOWER(COALESCE(payment_status,'')) = 'paid'
+                         AND amount > 1
+                    THEN amount
+                    ELSE 0
+                END
+            ),
+            0
+        ) AS revenue
 
-            COUNT(*)
-                AS total_bookings,
+    FROM bookings
+    WHERE YEAR(created_at) = ?
+      AND amount > 1
 
-            COALESCE(
-                SUM(
-                    CASE
-                        WHEN LOWER(payment_status) = 'paid'
-                        THEN amount
-                        ELSE 0
-                    END
-                ),
-                0
-            )
-                AS revenue
-
-        FROM bookings
-
-        WHERE YEAR(created_at) = ?
-
-        GROUP BY
-            COALESCE(
-                NULLIF(
-                    TRIM(tour_name),
-                    ''
-                ),
-                'Not specified'
-            )
-
-        ORDER BY
-            total_bookings DESC,
-            revenue DESC
-
-        LIMIT 8
-        "
-    );
-
+    GROUP BY COALESCE(NULLIF(TRIM(tour_name), ''), 'Not specified')
+    ORDER BY revenue DESC, total_bookings DESC
+    LIMIT 8
+");
 
 if ($tourStmt) {
-
-    $tourStmt->bind_param(
-        "i",
-        $year
-    );
-
-
+    $tourStmt->bind_param("i", $year);
     $tourStmt->execute();
+    $tourResult = $tourStmt->get_result();
 
-
-    $tourResult =
-        $tourStmt->get_result();
-
-
-    while (
-        $tourResult
-        &&
-        $row =
-            $tourResult
-            ->fetch_assoc()
-    ) {
-
-        $tourPerformance[] =
-            $row;
+    while ($tourResult && $row = $tourResult->fetch_assoc()) {
+        $tourPerformance[] = $row;
     }
-
 
     $tourStmt->close();
 }
-
 
 
 /* =========================================================
@@ -348,80 +236,52 @@ if ($tourStmt) {
 
 $paymentPerformance = [];
 
+$paymentStmt = $conn->prepare("
+    SELECT
+        payment,
 
-$paymentStmt =
-    $conn->prepare(
-        "
-        SELECT
+        COUNT(*) AS total_transactions,
 
-            payment,
+        SUM(
+            CASE
+                WHEN LOWER(COALESCE(payment_status,'')) = 'paid'
+                     AND amount > 1
+                THEN 1
+                ELSE 0
+            END
+        ) AS paid_transactions,
 
-            COUNT(*)
-                AS total_transactions,
-
+        COALESCE(
             SUM(
                 CASE
-                    WHEN LOWER(payment_status) = 'paid'
-                    THEN 1
+                    WHEN LOWER(COALESCE(payment_status,'')) = 'paid'
+                         AND amount > 1
+                    THEN amount
                     ELSE 0
                 END
-            )
-                AS paid_transactions,
+            ),
+            0
+        ) AS revenue
 
-            COALESCE(
-                SUM(
-                    CASE
-                        WHEN LOWER(payment_status) = 'paid'
-                        THEN amount
-                        ELSE 0
-                    END
-                ),
-                0
-            )
-                AS revenue
+    FROM bookings
+    WHERE YEAR(created_at) = ?
+      AND amount > 1
 
-        FROM bookings
-
-        WHERE YEAR(created_at) = ?
-
-        GROUP BY payment
-
-        ORDER BY total_transactions DESC
-        "
-    );
-
+    GROUP BY payment
+    ORDER BY revenue DESC, total_transactions DESC
+");
 
 if ($paymentStmt) {
-
-    $paymentStmt->bind_param(
-        "i",
-        $year
-    );
-
-
+    $paymentStmt->bind_param("i", $year);
     $paymentStmt->execute();
+    $paymentResult = $paymentStmt->get_result();
 
-
-    $paymentResult =
-        $paymentStmt->get_result();
-
-
-    while (
-        $paymentResult
-        &&
-        $row =
-            $paymentResult
-            ->fetch_assoc()
-    ) {
-
-        $paymentPerformance[] =
-            $row;
+    while ($paymentResult && $row = $paymentResult->fetch_assoc()) {
+        $paymentPerformance[] = $row;
     }
-
 
     $paymentStmt->close();
 }
-
 
 
 /* =========================================================
@@ -430,84 +290,66 @@ if ($paymentStmt) {
 
 $topCustomers = [];
 
+$customerStmt = $conn->prepare("
+    SELECT
+        u.id,
+        u.name,
+        u.email,
 
-$customerStmt =
-    $conn->prepare(
-        "
-        SELECT
+        SUM(
+            CASE
+                WHEN b.amount > 1
+                THEN 1
+                ELSE 0
+            END
+        ) AS total_bookings,
 
-            u.id,
-            u.name,
-            u.email,
+        COALESCE(
+            SUM(
+                CASE
+                    WHEN LOWER(COALESCE(b.payment_status,'')) = 'paid'
+                         AND b.amount > 1
+                    THEN b.amount
+                    ELSE 0
+                END
+            ),
+            0
+        ) AS total_spent
 
-            COUNT(b.id)
-                AS total_bookings,
+    FROM users u
 
-            COALESCE(
-                SUM(
-                    CASE
-                        WHEN LOWER(b.payment_status) = 'paid'
-                        THEN b.amount
-                        ELSE 0
-                    END
-                ),
-                0
-            )
-                AS total_spent
+    LEFT JOIN bookings b
+        ON b.user_id = u.id
+        AND YEAR(b.created_at) = ?
 
-        FROM users u
+    GROUP BY
+        u.id,
+        u.name,
+        u.email
 
-        LEFT JOIN bookings b
-            ON b.user_id = u.id
-            AND YEAR(b.created_at) = ?
+    HAVING SUM(
+        CASE
+            WHEN b.amount > 1
+            THEN 1
+            ELSE 0
+        END
+    ) > 0
 
-        GROUP BY
-            u.id,
-            u.name,
-            u.email
-
-        HAVING COUNT(b.id) > 0
-
-        ORDER BY
-            total_spent DESC,
-            total_bookings DESC
-
-        LIMIT 8
-        "
-    );
-
+    ORDER BY total_spent DESC, total_bookings DESC
+    LIMIT 8
+");
 
 if ($customerStmt) {
-
-    $customerStmt->bind_param(
-        "i",
-        $year
-    );
-
-
+    $customerStmt->bind_param("i", $year);
     $customerStmt->execute();
+    $customerResult = $customerStmt->get_result();
 
-
-    $customerResult =
-        $customerStmt->get_result();
-
-
-    while (
-        $customerResult
-        &&
-        $row =
-            $customerResult
-            ->fetch_assoc()
-    ) {
-
-        $topCustomers[] =
-            $row;
+    while ($customerResult && $row = $customerResult->fetch_assoc()) {
+        $topCustomers[] = $row;
     }
-
 
     $customerStmt->close();
 }
-
 
 
 /* =========================================================
@@ -1023,13 +865,18 @@ function reportEscape(
 
         .chart { height:280px; }
 
-        .data-table-wrap { overflow-x:auto; }
-
-        .data-table {
+        .data-table-wrap {
             width:100%;
-            min-width:680px;
-            border-collapse:collapse;
+            min-width:0;
+            overflow-x:hidden;
         }
+
+.data-table {
+    width:100%;
+    min-width:0;
+    border-collapse:collapse;
+    table-layout:auto;
+}
 
         .data-table th {
             padding:12px 14px;
@@ -1080,6 +927,17 @@ function reportEscape(
             .mobile-menu{display:inline-flex;}
             .grid2{grid-template-columns:1fr;}
         }
+
+        @media(max-width:700px){
+
+    .data-table-wrap{
+        overflow-x:auto;
+    }
+
+    .data-table{
+        min-width:620px;
+    }
+}
 
         @media(max-width:600px){
             .main{padding:15px;}
@@ -1267,24 +1125,7 @@ function reportEscape(
 
             <article class="stat">
                 <div class="stat-top">
-                    <p class="stat-label">Total Bookings</p>
-                    <div class="stat-icon">
-                        <i class="fa-solid fa-calendar-check"></i>
-                    </div>
-                </div>
-                <div class="stat-value">
-                    <?php echo number_format(
-                        (int) $summary["total_bookings"]
-                    ); ?>
-                </div>
-                <p class="stat-note">
-                    Bookings created in <?php echo (int) $year; ?>
-                </p>
-            </article>
-
-            <article class="stat">
-                <div class="stat-top">
-                    <p class="stat-label">Confirmed Revenue</p>
+                    <p class="stat-label">Live Revenue</p>
                     <div class="stat-icon">
                         <i class="fa-solid fa-wallet"></i>
                     </div>
@@ -1295,7 +1136,9 @@ function reportEscape(
                         0
                     ); ?>
                 </div>
-                <p class="stat-note">Paid transactions only</p>
+                <p class="stat-note">
+                    Confirmed business revenue • excludes test transactions
+                </p>
             </article>
 
             <article class="stat">
@@ -1310,24 +1153,67 @@ function reportEscape(
                         (int) $summary["paid_bookings"]
                     ); ?>
                 </div>
-                <p class="stat-note">Successful payments</p>
+                <p class="stat-note">Live successful payments</p>
             </article>
 
             <article class="stat">
                 <div class="stat-top">
-                    <p class="stat-label">Pending</p>
+                    <p class="stat-label">Average Booking Value</p>
                     <div class="stat-icon">
-                        <i class="fa-solid fa-clock"></i>
+                        <i class="fa-solid fa-chart-line"></i>
                     </div>
                 </div>
                 <div class="stat-value">
-                    <?php echo number_format(
-                        (int) $summary["pending_bookings"]
+                    KES <?php echo number_format(
+                        (float) $averageBookingValue,
+                        0
                     ); ?>
                 </div>
-                <p class="stat-note">Awaiting confirmation</p>
+                <p class="stat-note">Average confirmed paid booking</p>
             </article>
 
+            <article class="stat">
+                <div class="stat-top">
+                    <p class="stat-label">Cancelled Value</p>
+                    <div class="stat-icon">
+                        <i class="fa-solid fa-ban"></i>
+                    </div>
+                </div>
+                <div class="stat-value">
+                    KES <?php echo number_format(
+                        (float) $summary["cancelled_value"],
+                        0
+                    ); ?>
+                </div>
+                <p class="stat-note">Value of cancelled live bookings</p>
+            </article>
+
+        </section>
+
+        <section class="panel" style="margin-bottom:16px;">
+            <div class="panel-head">
+                <h2>Development Activity</h2>
+                <span>Excluded from business analytics</span>
+            </div>
+
+            <div style="padding:18px;display:flex;align-items:center;gap:12px;">
+                <div class="stat-icon">
+                    <i class="fa-solid fa-flask"></i>
+                </div>
+
+                <div>
+                    <strong style="display:block;font-size:15px;color:#edcb7d;">
+                        <?php echo number_format(
+                            (int) $summary["test_transactions"]
+                        ); ?>
+                        test-like transactions
+                    </strong>
+
+                    <span style="display:block;margin-top:5px;color:#8d7e78;font-size:9px;">
+                        Transactions of KES 1 or less are currently treated as development activity.
+                    </span>
+                </div>
+            </div>
         </section>
 
         <section class="grid2">

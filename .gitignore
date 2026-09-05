@@ -1,19 +1,54 @@
+# ==========================================================
+# SPRINTER TOURS & SAFARIS
+# Git exclusions
+# ==========================================================
+
 # Environment variables / secrets
 .env
 .env.*
 !.env.example
 
-# Local configuration containing secrets
+# Local configuration / credentials
 config.local.php
 secrets.php
 
+# Composer dependencies
+/vendor/
+
 # Logs
 *.log
+mpesa_callback_log.txt
+php_errors.log
 
-# OS / editor files
+# Temporary/exported files
+*.tmp
+*.temp
+*.xlsx
+*.xls
+*.pdf
+
+# Local database/backups
+*.sql
+*.sql.gz
+*.zip
+/backups/
+/database_backups/
+
+# IDE / editor
+.vscode/
+.idea/
+
+# Operating system files
 .DS_Store
 Thumbs.db
-.vscode/
+desktop.ini
 
-# Payment / callback logs
-mpesa_callback_log.txt
+# Local development files
+php_test.php
+
+# Temporary uploads/caches if created later
+/cache/
+/tmp/
+
+# Dompdf generated font cache
+/dompdf/vendor/dompdf/dompdf/lib/fonts/*.ufm.json

@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . "/admin_auth.php";
+requireAdmin();
 require_once __DIR__ . "/db.php";
 
 
@@ -52,7 +53,8 @@ $result =
                 0
             ) AS total
         FROM bookings
-        WHERE LOWER(payment_status) = 'paid'
+        WHERE LOWER(COALESCE(payment_status, '')) = 'paid'
+          AND amount > 1
         "
     );
 
@@ -129,6 +131,7 @@ $result =
             payment,
             COUNT(*) AS total
         FROM bookings
+        WHERE amount > 1
         GROUP BY payment
         ORDER BY total DESC
         "
@@ -167,6 +170,7 @@ $result =
             COUNT(*) AS total
         FROM bookings
         WHERE YEAR(date) = YEAR(CURDATE())
+          AND amount > 1
         GROUP BY MONTH(date)
         ORDER BY MONTH(date)
         "

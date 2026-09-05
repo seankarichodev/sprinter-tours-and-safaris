@@ -1,5 +1,5 @@
-<?php
 
+<?php
 require_once __DIR__ . "/admin_auth.php";
 requireOwner();
 
@@ -32,6 +32,7 @@ $pendingBookings = 0;
 $pendingValue = 0.0;
 $failedBookings = 0;
 $cancelledBookings = 0;
+$testLikeTransactions = 0;
 
 
 /* TOTAL BOOKINGS */
@@ -57,7 +58,8 @@ $result = $conn->query(
         COALESCE(
             SUM(
                 CASE
-                    WHEN LOWER(payment_status) = 'paid'
+                    WHEN LOWER(COALESCE(payment_status, '')) = 'paid'
+                         AND amount > 1
                     THEN amount
                     ELSE 0
                 END
@@ -67,7 +69,8 @@ $result = $conn->query(
 
         SUM(
             CASE
-                WHEN LOWER(payment_status) = 'paid'
+                WHEN LOWER(COALESCE(payment_status, '')) = 'paid'
+                     AND amount > 1
                 THEN 1
                 ELSE 0
             END
@@ -75,7 +78,8 @@ $result = $conn->query(
 
         SUM(
             CASE
-                WHEN LOWER(payment_status) = 'pending'
+                WHEN LOWER(COALESCE(payment_status, '')) = 'pending'
+                     AND amount > 1
                 THEN 1
                 ELSE 0
             END
@@ -84,7 +88,8 @@ $result = $conn->query(
         COALESCE(
             SUM(
                 CASE
-                    WHEN LOWER(payment_status) = 'pending'
+                    WHEN LOWER(COALESCE(payment_status, '')) = 'pending'
+                         AND amount > 1
                     THEN amount
                     ELSE 0
                 END
@@ -94,7 +99,8 @@ $result = $conn->query(
 
         SUM(
             CASE
-                WHEN LOWER(payment_status) IN ('failed', 'timedout')
+                WHEN LOWER(COALESCE(payment_status, '')) IN ('failed', 'timedout')
+                     AND amount > 1
                 THEN 1
                 ELSE 0
             END
@@ -102,7 +108,8 @@ $result = $conn->query(
 
         SUM(
             CASE
-                WHEN LOWER(payment_status) = 'cancelled'
+                WHEN LOWER(COALESCE(payment_status, '')) = 'cancelled'
+                     AND amount > 1
                 THEN 1
                 ELSE 0
             END
@@ -134,6 +141,21 @@ if ($result && $row = $result->fetch_assoc()) {
 }
 
 
+/* DEVELOPMENT / TEST-LIKE TRANSACTIONS */
+
+$result = $conn->query(
+    "
+    SELECT COUNT(*) AS total
+    FROM bookings
+    WHERE amount <= 1
+    "
+);
+
+if ($result && $row = $result->fetch_assoc()) {
+    $testLikeTransactions = (int) ($row["total"] ?? 0);
+}
+
+
 /* CUSTOMERS */
 
 $result = $conn->query(
@@ -147,6 +169,115 @@ if ($result && $row = $result->fetch_assoc()) {
     $totalCustomers = (int) ($row["total"] ?? 0);
 }
 
+
+/* =========================================================
+   TODAY / OPERATIONS SNAPSHOT
+========================================================= */
+
+$todayRevenue = 0.0;
+$monthRevenue = 0.0;
+$yearRevenue = 0.0;
+$todayBookings = 0;
+$upcomingTours = 0;
+$newCustomersMonth = 0;
+$unreadMessages = 0;
+$topTourName = "No paid bookings yet";
+$topTourBookings = 0;
+
+$result = $conn->query(
+    "
+    SELECT
+        COALESCE(SUM(CASE
+            WHEN LOWER(COALESCE(payment_status, '')) = 'paid'
+                 AND amount > 1
+                 AND DATE(created_at) = CURDATE()
+            THEN amount ELSE 0 END), 0) AS today_revenue,
+
+        COALESCE(SUM(CASE
+            WHEN LOWER(COALESCE(payment_status, '')) = 'paid'
+                 AND amount > 1
+                 AND YEAR(created_at) = YEAR(CURDATE())
+                 AND MONTH(created_at) = MONTH(CURDATE())
+            THEN amount ELSE 0 END), 0) AS month_revenue,
+
+        COALESCE(SUM(CASE
+            WHEN LOWER(COALESCE(payment_status, '')) = 'paid'
+                 AND amount > 1
+                 AND YEAR(created_at) = YEAR(CURDATE())
+            THEN amount ELSE 0 END), 0) AS year_revenue,
+
+        SUM(CASE
+            WHEN DATE(created_at) = CURDATE()
+            THEN 1 ELSE 0 END) AS today_bookings,
+
+        SUM(CASE
+            WHEN date >= CURDATE()
+                 AND LOWER(COALESCE(payment_status, '')) = 'paid'
+                 AND amount > 1
+            THEN 1 ELSE 0 END) AS upcoming_tours
+    FROM bookings
+    "
+);
+
+if ($result && $row = $result->fetch_assoc()) {
+    $todayRevenue = (float) ($row["today_revenue"] ?? 0);
+    $monthRevenue = (float) ($row["month_revenue"] ?? 0);
+    $yearRevenue = (float) ($row["year_revenue"] ?? 0);
+    $todayBookings = (int) ($row["today_bookings"] ?? 0);
+    $upcomingTours = (int) ($row["upcoming_tours"] ?? 0);
+}
+
+$result = $conn->query(
+    "
+    SELECT COUNT(*) AS total
+    FROM users
+    WHERE YEAR(created_at) = YEAR(CURDATE())
+      AND MONTH(created_at) = MONTH(CURDATE())
+    "
+);
+
+if ($result && $row = $result->fetch_assoc()) {
+    $newCustomersMonth = (int) ($row["total"] ?? 0);
+}
+
+$messageTable = $conn->query("SHOW TABLES LIKE 'messages'");
+if ($messageTable && $messageTable->num_rows === 1) {
+    $result = $conn->query(
+        "
+        SELECT COUNT(*) AS total
+        FROM messages
+        WHERE LOWER(COALESCE(status, '')) = 'unread'
+        "
+    );
+
+    if ($result && $row = $result->fetch_assoc()) {
+        $unreadMessages = (int) ($row["total"] ?? 0);
+    }
+}
+
+$result = $conn->query(
+    "
+    SELECT
+        COALESCE(NULLIF(TRIM(tour_name), ''), 'General Tour') AS tour_name,
+        COUNT(*) AS total_bookings
+    FROM bookings
+    WHERE LOWER(COALESCE(payment_status, '')) = 'paid'
+      AND amount > 1
+    GROUP BY COALESCE(NULLIF(TRIM(tour_name), ''), 'General Tour')
+    ORDER BY total_bookings DESC, tour_name ASC
+    LIMIT 1
+    "
+);
+
+if ($result && $row = $result->fetch_assoc()) {
+    $topTourName = (string) ($row["tour_name"] ?? $topTourName);
+    $topTourBookings = (int) ($row["total_bookings"] ?? 0);
+}
+
+$actionRequired =
+    $pendingBookings
+    + $failedBookings
+    + $unreadMessages;
 
 /* =========================================================
    MONTHLY PERFORMANCE
@@ -186,7 +317,8 @@ $result = $conn->query(
         COALESCE(
             SUM(
                 CASE
-                    WHEN LOWER(payment_status) = 'paid'
+                    WHEN LOWER(COALESCE(payment_status, '')) = 'paid'
+                         AND amount > 1
                     THEN amount
                     ELSE 0
                 END
@@ -197,6 +329,7 @@ $result = $conn->query(
     FROM bookings
 
     WHERE YEAR(created_at) = YEAR(CURDATE())
+      AND amount > 1
 
     GROUP BY MONTH(created_at)
 
@@ -250,7 +383,8 @@ $result = $conn->query(
 
         SUM(
             CASE
-                WHEN LOWER(payment_status) = 'paid'
+                WHEN LOWER(COALESCE(payment_status, '')) = 'paid'
+                     AND amount > 1
                 THEN 1
                 ELSE 0
             END
@@ -259,7 +393,8 @@ $result = $conn->query(
         COALESCE(
             SUM(
                 CASE
-                    WHEN LOWER(payment_status) = 'paid'
+                    WHEN LOWER(COALESCE(payment_status, '')) = 'paid'
+                         AND amount > 1
                     THEN amount
                     ELSE 0
                 END
@@ -268,6 +403,8 @@ $result = $conn->query(
         ) AS revenue
 
     FROM bookings
+
+    WHERE amount > 1
 
     GROUP BY payment
 
@@ -927,6 +1064,89 @@ if (
         }
 
         /* =====================================================
+           OPERATIONS SNAPSHOT
+        ===================================================== */
+
+        .owner-ops-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 12px;
+            margin-bottom: 22px;
+        }
+
+        .owner-ops-card {
+            position: relative;
+            min-width: 0;
+            padding: 16px;
+            border: 1px solid rgba(255,255,255,.07);
+            border-radius: 14px;
+            background: rgba(255,255,255,.025);
+            overflow: hidden;
+        }
+
+        .owner-ops-card::after {
+            content: "";
+            position: absolute;
+            width: 80px;
+            height: 80px;
+            right: -32px;
+            top: -32px;
+            border-radius: 50%;
+            background: rgba(217,45,45,.08);
+        }
+
+        .owner-ops-card .ops-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .owner-ops-card .ops-label {
+            color: #8f817c;
+            font-size: 10px;
+            font-weight: 800;
+            letter-spacing: .8px;
+            text-transform: uppercase;
+        }
+
+        .owner-ops-card i {
+            color: var(--gold);
+        }
+
+        .owner-ops-card strong {
+            display: block;
+            margin-top: 10px;
+            color: #f7f1ed;
+            font-family: "Playfair Display", serif;
+            font-size: 23px;
+            line-height: 1.1;
+        }
+
+        .owner-ops-card small {
+            display: block;
+            margin-top: 6px;
+            color: #786d68;
+            font-size: 10px;
+            line-height: 1.5;
+        }
+
+        .owner-ops-card.attention {
+            border-color: rgba(232,179,77,.28);
+            background: linear-gradient(180deg, rgba(73,48,12,.16), rgba(255,255,255,.02));
+        }
+
+        .owner-ops-card.attention strong {
+            color: var(--warning);
+        }
+
+        .owner-ops-card.tour strong {
+            font-family: "DM Sans", sans-serif;
+            font-size: 16px;
+            line-height: 1.35;
+        }
+
+        /* =====================================================
            PANELS
         ===================================================== */
 
@@ -1289,6 +1509,7 @@ if (
             }
 
             .owner-kpi-grid,
+            .owner-ops-grid,
             .status-grid {
                 grid-template-columns: 1fr 1fr;
             }
@@ -1305,6 +1526,7 @@ if (
         @media (max-width: 390px) {
 
             .owner-kpi-grid,
+            .owner-ops-grid,
             .status-grid {
                 grid-template-columns: 1fr;
             }
@@ -1525,6 +1747,11 @@ if (
                     Owner Verified
                 </strong>
 
+                <span style="margin-top:12px;">Development Activity</span>
+                <strong style="font-size:12px;">
+                    <?php echo number_format($testLikeTransactions); ?> test-like transaction<?php echo $testLikeTransactions === 1 ? "" : "s"; ?>
+                </strong>
+
             </div>
 
         </section>
@@ -1559,7 +1786,7 @@ if (
                 </div>
 
                 <p class="owner-kpi-note">
-                    Paid bookings only
+                    KES <?php echo number_format($yearRevenue, 0); ?> confirmed this year
                 </p>
 
             </article>
@@ -1617,7 +1844,7 @@ if (
                 </div>
 
                 <p class="owner-kpi-note">
-                    Registered customer accounts
+                    <?php echo number_format($newCustomersMonth); ?> new this month · <?php echo number_format($totalCustomers); ?> total
                 </p>
 
             </article>
@@ -1657,6 +1884,46 @@ if (
 
         </section>
 
+
+        <section class="owner-ops-grid" aria-label="Today and operations snapshot">
+
+            <article class="owner-ops-card">
+                <div class="ops-top">
+                    <span class="ops-label">Revenue Today</span>
+                    <i class="fa-solid fa-coins"></i>
+                </div>
+                <strong>KES <?php echo number_format($todayRevenue, 0); ?></strong>
+                <small>KES <?php echo number_format($monthRevenue, 0); ?> confirmed this month</small>
+            </article>
+
+            <article class="owner-ops-card">
+                <div class="ops-top">
+                    <span class="ops-label">Bookings Today</span>
+                    <i class="fa-solid fa-calendar-day"></i>
+                </div>
+                <strong><?php echo number_format($todayBookings); ?></strong>
+                <small><?php echo number_format($upcomingTours); ?> paid upcoming tour<?php echo $upcomingTours === 1 ? "" : "s"; ?></small>
+            </article>
+
+            <article class="owner-ops-card tour">
+                <div class="ops-top">
+                    <span class="ops-label">Top Selling Tour</span>
+                    <i class="fa-solid fa-ranking-star"></i>
+                </div>
+                <strong><?php echo ownerEscape($topTourName); ?></strong>
+                <small><?php echo number_format($topTourBookings); ?> confirmed booking<?php echo $topTourBookings === 1 ? "" : "s"; ?></small>
+            </article>
+
+            <article class="owner-ops-card attention">
+                <div class="ops-top">
+                    <span class="ops-label">Action Required</span>
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                </div>
+                <strong><?php echo number_format($actionRequired); ?></strong>
+                <small><?php echo number_format($pendingBookings); ?> pending · <?php echo number_format($failedBookings); ?> failed · <?php echo number_format($unreadMessages); ?> unread</small>
+            </article>
+
+        </section>
 
         <section class="owner-grid-2">
 

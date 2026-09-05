@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . "/admin_auth.php";
+requireAdmin();
 require_once __DIR__ . "/db.php";
 
 
@@ -114,7 +115,8 @@ $statsSql =
         COALESCE(
             SUM(
                 CASE
-                    WHEN LOWER(payment_status) = 'paid'
+                    WHEN LOWER(COALESCE(payment_status, '')) = 'paid'
+                         AND amount > 1
                     THEN amount
                     ELSE 0
                 END
@@ -124,7 +126,8 @@ $statsSql =
 
         SUM(
             CASE
-                WHEN LOWER(payment_status) = 'paid'
+                WHEN LOWER(COALESCE(payment_status, '')) = 'paid'
+                     AND amount > 1
                 THEN 1
                 ELSE 0
             END
@@ -132,7 +135,8 @@ $statsSql =
 
         SUM(
             CASE
-                WHEN LOWER(payment_status) = 'pending'
+                WHEN LOWER(COALESCE(payment_status, '')) = 'pending'
+                     AND amount > 1
                 THEN 1
                 ELSE 0
             END
@@ -140,12 +144,20 @@ $statsSql =
 
         SUM(
             CASE
-                WHEN LOWER(payment_status) = 'failed'
-                     OR LOWER(payment_status) = 'timedout'
+                WHEN LOWER(COALESCE(payment_status, '')) IN ('failed', 'timedout')
+                     AND amount > 1
                 THEN 1
                 ELSE 0
             END
-        ) AS failed_count
+        ) AS failed_count,
+
+        SUM(
+            CASE
+                WHEN amount <= 1
+                THEN 1
+                ELSE 0
+            END
+        ) AS test_like_count
 
     FROM bookings
     ";
@@ -162,7 +174,8 @@ $stats = [
     "paid_revenue" => 0,
     "paid_count" => 0,
     "pending_count" => 0,
-    "failed_count" => 0
+    "failed_count" => 0,
+    "test_like_count" => 0
 ];
 
 
@@ -204,6 +217,12 @@ if ($statsResult) {
                 $statsRow["failed_count"]
                 ?? 0
             );
+
+        $stats["test_like_count"] =
+            (int) (
+                $statsRow["test_like_count"]
+                ?? 0
+            );
     }
 }
 
@@ -225,7 +244,8 @@ $methodResult =
             COALESCE(
                 SUM(
                     CASE
-                        WHEN LOWER(payment_status) = 'paid'
+                        WHEN LOWER(COALESCE(payment_status, '')) = 'paid'
+                             AND amount > 1
                         THEN amount
                         ELSE 0
                     END
@@ -234,6 +254,7 @@ $methodResult =
             ) AS revenue
 
         FROM bookings
+        WHERE amount > 1
 
         GROUP BY payment
 
@@ -647,7 +668,7 @@ function paymentStatusClass(
                     <div class="admin-stat-top">
 
                         <p class="admin-stat-label">
-                            Paid Revenue
+                            Live Revenue
                         </p>
 
                         <div class="admin-stat-icon">
@@ -671,7 +692,7 @@ function paymentStatusClass(
                     </div>
 
                     <p class="admin-stat-note">
-                        Confirmed payments only
+                        Paid live-value bookings only
                     </p>
 
                 </article>
@@ -683,7 +704,7 @@ function paymentStatusClass(
                     <div class="admin-stat-top">
 
                         <p class="admin-stat-label">
-                            Paid
+                            Live Paid
                         </p>
 
                         <div class="admin-stat-icon">
@@ -705,7 +726,7 @@ function paymentStatusClass(
                     </div>
 
                     <p class="admin-stat-note">
-                        Successful transactions
+                        Successful live transactions
                     </p>
 
                 </article>
@@ -1134,7 +1155,20 @@ function paymentStatusClass(
                             <div class="payment-row">
 
                                 <span>
-                                    Successful payments
+                                    Test-like records retained
+                                </span>
+
+                                <strong>
+                                    <?php echo number_format($stats["test_like_count"]); ?>
+                                </strong>
+
+                            </div>
+
+
+                            <div class="payment-row">
+
+                                <span>
+                                    Successful live payments
                                 </span>
 
                                 <strong>
@@ -1290,7 +1324,15 @@ function paymentStatusClass(
                                     </th>
 
                                     <th>
+                                        Environment
+                                    </th>
+
+                                    <th>
                                         Created
+                                    </th>
+
+                                    <th>
+                                        Action
                                     </th>
 
                                 </tr>
@@ -1377,7 +1419,7 @@ function paymentStatusClass(
                                     <td>
 
                                         <a
-                                            href="edit_booking.php?id=<?php echo (int) $paymentRow["id"]; ?>"
+                                            href="admin_booking_view.php?id=<?php echo (int) $paymentRow["id"]; ?>"
                                             class="admin-action-link admin-action-view"
                                         >
 
@@ -1533,6 +1575,16 @@ function paymentStatusClass(
 
 
                                     <td>
+                                        <?php if ((float) ($paymentRow["amount"] ?? 0) <= 1): ?>
+                                            <span class="status-badge status-pending">TEST-LIKE</span>
+                                        <?php else: ?>
+                                            <span class="status-badge status-paid">LIVE</span>
+                                        <?php endif; ?>
+                                    </td>
+
+
+
+                                    <td>
 
                                         <?php
 
@@ -1580,6 +1632,15 @@ function paymentStatusClass(
 
                                         ?>
 
+                                    </td>
+
+                                    <td>
+                                        <a
+                                            href="admin_booking_view.php?id=<?php echo (int) $paymentRow["id"]; ?>"
+                                            class="admin-action-link admin-action-view"
+                                        >
+                                            <i class="fa-regular fa-eye"></i> View
+                                        </a>
                                     </td>
 
 

@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . "/admin_auth.php";
+requireAdmin();
 require_once __DIR__ . "/db.php";
 
 
@@ -39,7 +40,7 @@ $summarySql =
         COALESCE(
             SUM(
                 CASE
-                    WHEN LOWER(payment_status) = 'paid'
+                    WHEN LOWER(COALESCE(payment_status, '')) = 'paid'
                     THEN amount
                     ELSE 0
                 END
@@ -49,7 +50,7 @@ $summarySql =
 
         SUM(
             CASE
-                WHEN LOWER(payment_status) = 'paid'
+                WHEN LOWER(COALESCE(payment_status, '')) = 'paid'
                 THEN 1
                 ELSE 0
             END
@@ -66,6 +67,7 @@ $summarySql =
     FROM bookings
 
     WHERE YEAR(created_at) = ?
+      AND amount > 1
     ";
 
 
@@ -138,6 +140,51 @@ if ($summaryStmt) {
 }
 
 
+/* =========================================================
+   DEVELOPMENT ACTIVITY
+========================================================= */
+
+$testLikeCount = 0;
+
+$testLikeStmt =
+    $conn->prepare(
+        "
+        SELECT COUNT(*) AS total
+        FROM bookings
+        WHERE YEAR(created_at) = ?
+          AND amount <= 1
+        "
+    );
+
+if ($testLikeStmt) {
+
+    $testLikeStmt->bind_param(
+        "i",
+        $year
+    );
+
+    $testLikeStmt->execute();
+
+    $testLikeResult =
+        $testLikeStmt->get_result();
+
+    if (
+        $testLikeResult
+        &&
+        ($testLikeRow = $testLikeResult->fetch_assoc())
+    ) {
+
+        $testLikeCount =
+            (int) (
+                $testLikeRow["total"]
+                ?? 0
+            );
+    }
+
+    $testLikeStmt->close();
+}
+
+
 
 /* =========================================================
    MONTHLY BOOKINGS + REVENUE
@@ -173,7 +220,7 @@ $monthlyStmt =
             COALESCE(
                 SUM(
                     CASE
-                        WHEN LOWER(payment_status) = 'paid'
+                        WHEN LOWER(COALESCE(payment_status, '')) = 'paid'
                         THEN amount
                         ELSE 0
                     END
@@ -185,6 +232,7 @@ $monthlyStmt =
         FROM bookings
 
         WHERE YEAR(created_at) = ?
+          AND amount > 1
 
         GROUP BY MONTH(created_at)
 
@@ -277,7 +325,7 @@ $tourStmt =
             COALESCE(
                 SUM(
                     CASE
-                        WHEN LOWER(payment_status) = 'paid'
+                        WHEN LOWER(COALESCE(payment_status, '')) = 'paid'
                         THEN amount
                         ELSE 0
                     END
@@ -289,6 +337,7 @@ $tourStmt =
         FROM bookings
 
         WHERE YEAR(created_at) = ?
+          AND amount > 1
 
         GROUP BY
             COALESCE(
@@ -360,7 +409,7 @@ $paymentStmt =
 
             SUM(
                 CASE
-                    WHEN LOWER(payment_status) = 'paid'
+                    WHEN LOWER(COALESCE(payment_status, '')) = 'paid'
                     THEN 1
                     ELSE 0
                 END
@@ -370,7 +419,7 @@ $paymentStmt =
             COALESCE(
                 SUM(
                     CASE
-                        WHEN LOWER(payment_status) = 'paid'
+                        WHEN LOWER(COALESCE(payment_status, '')) = 'paid'
                         THEN amount
                         ELSE 0
                     END
@@ -382,6 +431,7 @@ $paymentStmt =
         FROM bookings
 
         WHERE YEAR(created_at) = ?
+          AND amount > 1
 
         GROUP BY payment
 
@@ -445,7 +495,7 @@ $customerStmt =
             COALESCE(
                 SUM(
                     CASE
-                        WHEN LOWER(b.payment_status) = 'paid'
+                        WHEN LOWER(COALESCE(b.payment_status, '')) = 'paid'
                         THEN b.amount
                         ELSE 0
                     END
@@ -459,6 +509,7 @@ $customerStmt =
         LEFT JOIN bookings b
             ON b.user_id = u.id
             AND YEAR(b.created_at) = ?
+            AND b.amount > 1
 
         GROUP BY
             u.id,
@@ -710,8 +761,7 @@ function reportEscape(
                     </h1>
 
                     <p>
-                        Analyse booking performance,
-                        revenue, customers and payment activity.
+                        Review live booking performance, confirmed revenue, customers and payment activity.
                     </p>
 
                 </div>
@@ -769,7 +819,7 @@ function reportEscape(
                     <div class="admin-stat-top">
 
                         <p class="admin-stat-label">
-                            Total Bookings
+                            Live Bookings
                         </p>
 
                         <div class="admin-stat-icon">
@@ -789,7 +839,7 @@ function reportEscape(
                     </div>
 
                     <p class="admin-stat-note">
-                        Bookings created in <?php echo $year; ?>
+                        Business bookings above KES 1 in <?php echo $year; ?>
                     </p>
 
                 </article>
@@ -801,7 +851,7 @@ function reportEscape(
                     <div class="admin-stat-top">
 
                         <p class="admin-stat-label">
-                            Paid Revenue
+                            Live Revenue
                         </p>
 
                         <div class="admin-stat-icon">
@@ -823,7 +873,7 @@ function reportEscape(
                     </div>
 
                     <p class="admin-stat-note">
-                        Confirmed payments only
+                        Confirmed live payments only
                     </p>
 
                 </article>
@@ -835,7 +885,7 @@ function reportEscape(
                     <div class="admin-stat-top">
 
                         <p class="admin-stat-label">
-                            Paid Bookings
+                            Live Paid Bookings
                         </p>
 
                         <div class="admin-stat-icon">
@@ -855,7 +905,7 @@ function reportEscape(
                     </div>
 
                     <p class="admin-stat-note">
-                        Successful payments
+                        Successful live payments
                     </p>
 
                 </article>
@@ -896,6 +946,50 @@ function reportEscape(
             </section>
 
 
+            <section
+                class="admin-panel"
+                style="margin-top:18px;"
+            >
+                <div class="admin-panel-body">
+                    <div
+                        style="
+                            display:flex;
+                            align-items:center;
+                            justify-content:space-between;
+                            gap:16px;
+                            flex-wrap:wrap;
+                        "
+                    >
+                        <div>
+                            <strong style="display:block;margin-bottom:5px;">
+                                Reporting Integrity
+                            </strong>
+
+                            <span
+                                style="
+                                    color:var(--admin-muted);
+                                    font-size:12px;
+                                    line-height:1.5;
+                                "
+                            >
+                                Business analytics exclude development transactions
+                                of KES 1 or less. Those records remain available in
+                                operational history for traceability.
+                            </span>
+                        </div>
+
+                        <span
+                            class="status-badge status-pending"
+                            style="white-space:nowrap;"
+                        >
+                            <?php echo number_format($testLikeCount); ?>
+                            test-like record<?php echo $testLikeCount === 1 ? "" : "s"; ?>
+                        </span>
+                    </div>
+                </div>
+            </section>
+
+
 
             <!-- =============================================
                  CHARTS
@@ -909,7 +1003,7 @@ function reportEscape(
                     <div class="admin-panel-header">
 
                         <h2>
-                            Monthly Bookings
+                            Monthly Live Bookings
                         </h2>
 
                         <span>
@@ -937,7 +1031,7 @@ function reportEscape(
                     <div class="admin-panel-header">
 
                         <h2>
-                            Monthly Revenue
+                            Monthly Live Revenue
                         </h2>
 
                         <span>
@@ -1002,7 +1096,7 @@ function reportEscape(
                                     </th>
 
                                     <th>
-                                        Paid Revenue
+                                        Live Revenue
                                     </th>
 
                                 </tr>
@@ -1262,7 +1356,7 @@ function reportEscape(
                     <div class="admin-panel-header">
 
                         <h2>
-                            Top Customers
+                            Customer Booking Activity
                         </h2>
 
                     </div>
@@ -1293,7 +1387,7 @@ function reportEscape(
                                         </th>
 
                                         <th>
-                                            Total Spent
+                                            Live Value
                                         </th>
 
                                     </tr>
@@ -1479,7 +1573,7 @@ if (bookingsCanvas) {
                     {
 
                         label:
-                            "Bookings",
+                            "Live Bookings",
 
                         data:
                             <?php
@@ -1578,7 +1672,7 @@ if (revenueCanvas) {
                     {
 
                         label:
-                            "Revenue",
+                            "Live Revenue",
 
                         data:
                             <?php

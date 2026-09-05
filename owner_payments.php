@@ -1,21 +1,224 @@
 <?php
+
 require_once __DIR__ . "/admin_auth.php";
 requireOwner();
+
 require_once __DIR__ . "/db.php";
-$search=trim($_GET["search"]??"");
-$status=trim($_GET["status"]??"");
-$method=trim($_GET["method"]??"");
-$allowedStatuses=["","Pending","Paid","Failed","Cancelled","TimedOut"];
-$allowedMethods=["","Mpesa","Card","PayPal"];
-if(!in_array($status,$allowedStatuses,true))$status="";
-if(!in_array($method,$allowedMethods,true))$method="";
-$stats=["count"=>0,"revenue"=>0,"paid"=>0,"pending"=>0];
-$r=$conn->query("SELECT COUNT(*) count,COALESCE(SUM(CASE WHEN LOWER(payment_status)='paid' THEN amount ELSE 0 END),0) revenue,SUM(CASE WHEN LOWER(payment_status)='paid' THEN 1 ELSE 0 END) paid,SUM(CASE WHEN LOWER(payment_status)='pending' THEN 1 ELSE 0 END) pending FROM bookings");
-if($r&&$row=$r->fetch_assoc())$stats=$row;
-$stmt=$conn->prepare("SELECT id,name,email,tour_name,amount,payment,payment_status,payment_reference,mpesa_receipt,created_at FROM bookings WHERE (?='' OR name LIKE CONCAT('%',?,'%') OR email LIKE CONCAT('%',?,'%') OR tour_name LIKE CONCAT('%',?,'%') OR payment_reference LIKE CONCAT('%',?,'%') OR mpesa_receipt LIKE CONCAT('%',?,'%') OR CAST(id AS CHAR) LIKE CONCAT('%',?,'%')) AND (?='' OR LOWER(payment_status)=LOWER(?)) AND (?='' OR LOWER(payment)=LOWER(?)) ORDER BY id DESC LIMIT 100");
-$stmt->bind_param("sssssssssss",$search,$search,$search,$search,$search,$search,$search,$status,$status,$method,$method);
-$stmt->execute();$rows=$stmt->get_result();
-function oe($v){return htmlspecialchars((string)$v,ENT_QUOTES,"UTF-8");}
+
+function oe($v)
+{
+    return htmlspecialchars(
+        (string)$v,
+        ENT_QUOTES,
+        "UTF-8"
+    );
+}
+
+/* ==========================================
+   FILTERS
+========================================== */
+
+$search = trim($_GET["search"] ?? "");
+$status = trim($_GET["status"] ?? "");
+$method = trim($_GET["method"] ?? "");
+$mode = trim($_GET["mode"] ?? "live");
+
+$allowedStatuses = [
+    "",
+    "Pending",
+    "Paid",
+    "Failed",
+    "Cancelled",
+    "TimedOut"
+];
+
+$allowedMethods = [
+    "",
+    "Mpesa",
+    "Card",
+    "PayPal"
+];
+
+$allowedModes = [
+    "live",
+    "all",
+    "test"
+];
+
+if (!in_array($status, $allowedStatuses, true)) {
+    $status = "";
+}
+
+if (!in_array($method, $allowedMethods, true)) {
+    $method = "";
+}
+
+if (!in_array($mode, $allowedModes, true)) {
+    $mode = "live";
+}
+
+/* ==========================================
+   FINANCIAL SUMMARY
+
+   Current development rule:
+   amount <= 1 = test-like transaction
+
+   Later we can replace this with:
+   bookings.is_test
+========================================== */
+
+$stats = [
+    "transactions" => 0,
+    "revenue" => 0,
+    "paid" => 0,
+    "test_transactions" => 0
+];
+
+$sqlStats = "
+    SELECT
+
+        COUNT(*) AS transactions,
+
+        COALESCE(
+            SUM(
+                CASE
+                    WHEN LOWER(COALESCE(payment_status,'')) = 'paid'
+                         AND amount > 1
+                    THEN amount
+                    ELSE 0
+                END
+            ),
+            0
+        ) AS revenue,
+
+        SUM(
+            CASE
+                WHEN LOWER(COALESCE(payment_status,'')) = 'paid'
+                     AND amount > 1
+                THEN 1
+                ELSE 0
+            END
+        ) AS paid,
+
+        SUM(
+            CASE
+                WHEN amount <= 1
+                THEN 1
+                ELSE 0
+            END
+        ) AS test_transactions
+
+    FROM bookings
+";
+
+$r = $conn->query($sqlStats);
+
+if ($r && $row = $r->fetch_assoc()) {
+    $stats = array_merge($stats, $row);
+}
+
+/* ==========================================
+   PAYMENT LEDGER
+========================================== */
+
+$sql = "
+    SELECT
+        id,
+        user_id,
+        name,
+        email,
+        tour_name,
+        amount,
+        payment,
+        payment_status,
+        payment_reference,
+        mpesa_receipt,
+        created_at
+
+    FROM bookings
+
+    WHERE
+
+        (
+            ? = ''
+
+            OR name LIKE CONCAT('%', ?, '%')
+
+            OR email LIKE CONCAT('%', ?, '%')
+
+            OR tour_name LIKE CONCAT('%', ?, '%')
+
+            OR payment_reference LIKE CONCAT('%', ?, '%')
+
+            OR mpesa_receipt LIKE CONCAT('%', ?, '%')
+
+            OR CAST(id AS CHAR)
+                LIKE CONCAT('%', ?, '%')
+        )
+
+        AND
+        (
+            ? = ''
+            OR LOWER(payment_status)
+               = LOWER(?)
+        )
+
+        AND
+        (
+            ? = ''
+            OR LOWER(payment)
+               = LOWER(?)
+        )
+
+        AND
+        (
+            ? = 'all'
+
+            OR
+            (
+                ? = 'live'
+                AND amount > 1
+            )
+
+            OR
+            (
+                ? = 'test'
+                AND amount <= 1
+            )
+        )
+
+    ORDER BY id DESC
+
+    LIMIT 100
+";
+
+$stmt = $conn->prepare($sql);
+
+$stmt->bind_param(
+    "ssssssssssssss",
+    $search,
+    $search,
+    $search,
+    $search,
+    $search,
+    $search,
+    $search,
+
+    $status,
+    $status,
+
+    $method,
+    $method,
+
+    $mode,
+    $mode,
+    $mode
+);
+
+$stmt->execute();
+
+$rows = $stmt->get_result();
+
 ?><!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Payments | Sprinter Tours & Safaris</title><link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 <style>
 :root{--bg:#080606;--panel:#151010;--panel2:#1b1212;--red:#e23333;--gold:#d6a64d;--goldSoft:#edcb7d;--text:#f7f1ed;--muted:#a69791;--border:rgba(255,255,255,.08);--green:#52bb7e;--amber:#e6b653;--danger:#e05b5b}
@@ -31,6 +234,61 @@ function oe($v){return htmlspecialchars((string)$v,ENT_QUOTES,"UTF-8");}
 .filters{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px}.filters input,.filters select{min-height:42px;padding:0 12px;border:1px solid rgba(255,255,255,.09);border-radius:10px;background:#151010;color:#fff;outline:none;font:inherit;font-size:10px}.filters input{min-width:240px;flex:1}.filters button{cursor:pointer}.empty{padding:18px;color:#796c67;font-size:9px;text-align:center}.mobile-menu{display:none}
 .audit-item{padding:13px 15px;display:flex;gap:11px;border-bottom:1px solid rgba(255,255,255,.05)}.audit-icon{width:34px;height:34px;flex:0 0 34px;display:grid;place-items:center;border-radius:9px;color:var(--gold);background:rgba(157,21,21,.18)}.audit-body strong{display:block;font-size:10px}.audit-body span{display:block;margin-top:4px;color:#81736e;font-size:8px;line-height:1.5}
 @media(max-width:1100px){.owner-shell{grid-template-columns:210px minmax(0,1fr)}.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.test-badge,
+.live-badge{
+    display:inline-flex;
+    align-items:center;
+    gap:5px;
+    padding:6px 8px;
+    border-radius:999px;
+    font-size:7px;
+    font-weight:800;
+    letter-spacing:.5px;
+    white-space:nowrap;
+}
+
+.test-badge{
+    color:#efbe61;
+    border:1px solid rgba(230,182,83,.20);
+    background:rgba(230,182,83,.10);
+}
+
+.live-badge{
+    color:#74d69e;
+    border:1px solid rgba(82,187,126,.18);
+    background:rgba(82,187,126,.09);
+}
+
+.payment-actions{
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px;
+}
+
+.ledger-action{
+    display:inline-flex;
+    align-items:center;
+    gap:5px;
+    padding:7px 9px;
+    border:1px solid rgba(214,166,77,.22);
+    border-radius:8px;
+    background:rgba(214,166,77,.06);
+    color:var(--goldSoft);
+    text-decoration:none;
+    font-size:7px;
+    font-weight:800;
+    white-space:nowrap;
+}
+
+.ledger-action:hover{
+    background:rgba(214,166,77,.13);
+}
+
+.receipt-action{
+    border-color:rgba(82,187,126,.20);
+    color:#75d7a1;
+    background:rgba(82,187,126,.06);
+}
 @media(max-width:860px){.owner-shell{display:block}.sidebar{position:fixed;z-index:100;left:-260px;width:250px;transition:left .2s ease}.sidebar.open{left:0}.main{padding:20px}.mobile-menu{display:inline-flex}}
 @media(max-width:600px){.main{padding:15px}.topbar{align-items:flex-start;flex-direction:column}.stats{grid-template-columns:1fr 1fr}}
 @media(max-width:390px){.stats{grid-template-columns:1fr}}
@@ -39,11 +297,525 @@ function oe($v){return htmlspecialchars((string)$v,ENT_QUOTES,"UTF-8");}
 </head><body><div class="owner-shell"><aside class="sidebar" id="ownerSidebar"><div class="brand"><img src="images/Wildlife Sprinter Tours & Safaris.png" alt="Sprinter Tours & Safaris"><div><strong>Sprinter Tours & Safaris</strong><span>Owner Command Center</span></div></div><nav class="nav"><div class="nav-label">Executive</div><a href="owner_dashboard.php"><i class="fa-solid fa-crown"></i>Command Center</a><a href="owner_reports.php"><i class="fa-solid fa-chart-pie"></i>Business Reports</a><a href="owner_payments.php" class="active"><i class="fa-solid fa-credit-card"></i>Payments</a><div class="nav-label">Oversight</div><a href="owner_bookings.php"><i class="fa-solid fa-calendar-check"></i>Bookings</a><a href="owner_customers.php"><i class="fa-solid fa-users"></i>Customers</a><a href="owner_messages.php"><i class="fa-solid fa-envelope"></i>Messages</a><a href="owner_audit.php"><i class="fa-solid fa-shield-halved"></i>Audit Activity</a></nav><div class="sidebar-bottom"><div class="profile"><div class="avatar"><i class="fa-solid fa-crown"></i></div><div><strong><?php echo htmlspecialchars($adminUsername, ENT_QUOTES, "UTF-8"); ?></strong><span>Owner</span></div></div><a href="admin_logout.php" class="btn" style="width:100%;margin-top:8px;"><i class="fa-solid fa-right-from-bracket"></i>Sign Out</a></div></aside><main class="main"><header class="topbar"><div class="heading"><small>Executive Oversight</small><h1>Payments <span>Intelligence.</span></h1><p>Review confirmed revenue and payment activity without changing operational records.</p></div><button type="button" class="btn mobile-menu" id="ownerMenu"><i class="fa-solid fa-bars"></i>Menu</button></header>
 <section class="hero"><small>Owner Financial Oversight</small><h2>Follow the money. <span>Verify the business.</span></h2><p>Read-only executive payment visibility across M-Pesa, card and other recorded methods.</p></section>
 <section class="stats">
-<article class="stat"><div class="stat-top"><p class="stat-label">Transactions</p><div class="stat-icon"><i class="fa-solid fa-receipt"></i></div></div><div class="stat-value"><?php echo number_format((int)$stats["count"]);?></div><p class="stat-note">All payment records</p></article>
-<article class="stat"><div class="stat-top"><p class="stat-label">Confirmed Revenue</p><div class="stat-icon"><i class="fa-solid fa-wallet"></i></div></div><div class="stat-value">KES <?php echo number_format((float)$stats["revenue"],0);?></div><p class="stat-note">Paid transactions only</p></article>
-<article class="stat"><div class="stat-top"><p class="stat-label">Paid</p><div class="stat-icon"><i class="fa-solid fa-circle-check"></i></div></div><div class="stat-value"><?php echo number_format((int)$stats["paid"]);?></div><p class="stat-note">Successful payments</p></article>
-<article class="stat"><div class="stat-top"><p class="stat-label">Pending</p><div class="stat-icon"><i class="fa-solid fa-clock"></i></div></div><div class="stat-value"><?php echo number_format((int)$stats["pending"]);?></div><p class="stat-note">Awaiting confirmation</p></article>
+
+<article class="stat">
+
+<div class="stat-top">
+
+<p class="stat-label">
+Live Revenue
+</p>
+
+<div class="stat-icon">
+<i class="fa-solid fa-sack-dollar"></i>
+</div>
+
+</div>
+
+<div class="stat-value">
+
+KES
+<?php
+echo number_format(
+    (float)$stats["revenue"],
+    0
+);
+?>
+
+</div>
+
+<p class="stat-note">
+Excludes test-like transactions
+</p>
+
+</article>
+
+
+<article class="stat">
+
+<div class="stat-top">
+
+<p class="stat-label">
+Live Paid Transactions
+</p>
+
+<div class="stat-icon">
+<i class="fa-solid fa-circle-check"></i>
+</div>
+
+</div>
+
+<div class="stat-value">
+
+<?php
+echo number_format(
+    (int)$stats["paid"]
+);
+?>
+
+</div>
+
+<p class="stat-note">
+Paid transactions above KES 1
+</p>
+
+</article>
+
+
+<article class="stat">
+
+<div class="stat-top">
+
+<p class="stat-label">
+All Records
+</p>
+
+<div class="stat-icon">
+<i class="fa-solid fa-receipt"></i>
+</div>
+
+</div>
+
+<div class="stat-value">
+
+<?php
+echo number_format(
+    (int)$stats["transactions"]
+);
+?>
+
+</div>
+
+<p class="stat-note">
+Complete payment history
+</p>
+
+</article>
+
+
+<article class="stat">
+
+<div class="stat-top">
+
+<p class="stat-label">
+Test-Like Transactions
+</p>
+
+<div class="stat-icon">
+<i class="fa-solid fa-flask"></i>
+</div>
+
+</div>
+
+<div class="stat-value">
+
+<?php
+echo number_format(
+    (int)$stats["test_transactions"]
+);
+?>
+
+</div>
+
+<p class="stat-note">
+KES 1 development transactions
+</p>
+
+</article>
+
 </section>
-<form class="filters" method="GET"><input name="search" value="<?php echo oe($search);?>" placeholder="Search booking, customer, receipt or reference"><select name="status"><?php foreach($allowedStatuses as $v):?><option value="<?php echo oe($v);?>" <?php echo $v===$status?"selected":"";?>><?php echo $v===""?"All statuses":oe($v);?></option><?php endforeach;?></select><select name="method"><?php foreach($allowedMethods as $v):?><option value="<?php echo oe($v);?>" <?php echo $v===$method?"selected":"";?>><?php echo $v===""?"All methods":oe($v);?></option><?php endforeach;?></select><button class="btn" type="submit">Filter</button></form>
-<section class="panel"><div class="panel-head"><h2>Payment Ledger</h2><span>Read only</span></div><div class="table-wrap"><?php if($rows&&$rows->num_rows):?><table class="table"><thead><tr><th>ID</th><th>Customer</th><th>Tour</th><th>Amount</th><th>Method</th><th>Status</th><th>Reference</th><th>Created</th></tr></thead><tbody><?php while($row=$rows->fetch_assoc()):$s=strtolower((string)($row["payment_status"]??""));$pc=in_array($s,["paid","pending","failed","cancelled"],true)?$s:"default";?><tr><td>#<?php echo (int)$row["id"];?></td><td><strong><?php echo oe($row["name"]);?></strong><br><small><?php echo oe($row["email"]);?></small></td><td><?php echo oe($row["tour_name"]??"—");?></td><td class="money">KES <?php echo number_format((float)$row["amount"],0);?></td><td><?php echo oe($row["payment"]);?></td><td><span class="pill <?php echo $pc;?>"><?php echo oe($row["payment_status"]);?></span></td><td><?php echo oe($row["mpesa_receipt"]?:($row["payment_reference"]?:"—"));?></td><td><?php echo $row["created_at"]?date("d M Y H:i",strtotime($row["created_at"])):"—";?></td></tr><?php endwhile;?></tbody></table><?php else:?><div class="empty">No payment records match this filter.</div><?php endif;?></div></section>
-</main></div><script>const s=document.getElementById("ownerSidebar"),m=document.getElementById("ownerMenu");if(s&&m){m.addEventListener("click",()=>s.classList.toggle("open"));}</script></body></html>
+<form
+class="filters"
+method="GET"
+>
+
+<input
+type="text"
+name="search"
+value="<?php echo oe($search); ?>"
+placeholder="Search booking ID, customer, tour, M-Pesa receipt or transaction reference"
+>
+
+<select name="status">
+
+<?php foreach ($allowedStatuses as $value): ?>
+
+<option
+value="<?php echo oe($value); ?>"
+<?php echo $value === $status
+    ? "selected"
+    : ""; ?>
+>
+
+<?php
+echo $value === ""
+    ? "All statuses"
+    : oe($value);
+?>
+
+</option>
+
+<?php endforeach; ?>
+
+</select>
+
+
+<select name="method">
+
+<?php foreach ($allowedMethods as $value): ?>
+
+<option
+value="<?php echo oe($value); ?>"
+<?php echo $value === $method
+    ? "selected"
+    : ""; ?>
+>
+
+<?php
+echo $value === ""
+    ? "All payment methods"
+    : oe($value);
+?>
+
+</option>
+
+<?php endforeach; ?>
+
+</select>
+
+
+<select name="mode">
+
+<option
+value="live"
+<?php echo $mode === "live"
+    ? "selected"
+    : ""; ?>
+>
+Live Business Only
+</option>
+
+<option
+value="all"
+<?php echo $mode === "all"
+    ? "selected"
+    : ""; ?>
+>
+All Transactions
+</option>
+
+<option
+value="test"
+<?php echo $mode === "test"
+    ? "selected"
+    : ""; ?>
+>
+Test-Like Only
+</option>
+
+</select>
+
+
+<button
+class="btn"
+type="submit"
+>
+
+<i class="fa-solid fa-filter"></i>
+
+Filter
+
+</button>
+
+
+<a
+class="btn"
+href="owner_payments.php"
+>
+
+Clear
+
+</a>
+
+</form>
+
+<section class="panel">
+
+<div class="panel-head">
+
+<h2>
+Payment Ledger
+</h2>
+
+<span>
+Live and development transactions separated
+</span>
+
+</div>
+
+<div class="table-wrap">
+
+<?php if ($rows && $rows->num_rows): ?>
+
+<table class="table">
+
+<thead>
+
+<tr>
+
+<th>Booking</th>
+<th>Customer</th>
+<th>Tour</th>
+<th>Amount</th>
+<th>Method</th>
+<th>Status</th>
+<th>Environment</th>
+<th>Reference</th>
+<th>Created</th>
+<th>Actions</th>
+
+</tr>
+
+</thead>
+
+<tbody>
+
+<?php while ($row = $rows->fetch_assoc()): ?>
+
+<?php
+
+$paymentStatus = strtolower(
+    (string)($row["payment_status"] ?? "")
+);
+
+$statusClass = in_array(
+    $paymentStatus,
+    [
+        "paid",
+        "pending",
+        "failed",
+        "cancelled"
+    ],
+    true
+)
+    ? $paymentStatus
+    : "default";
+
+$isTestLike =
+    (float)$row["amount"] <= 1;
+
+$reference =
+    !empty($row["mpesa_receipt"])
+        ? $row["mpesa_receipt"]
+        : (
+            !empty($row["payment_reference"])
+                ? $row["payment_reference"]
+                : "—"
+        );
+
+?>
+
+<tr>
+
+<td>
+
+<strong>
+#<?php echo (int)$row["id"]; ?>
+</strong>
+
+</td>
+
+
+<td>
+
+<strong>
+<?php echo oe($row["name"]); ?>
+</strong>
+
+<br>
+
+<small>
+<?php echo oe($row["email"]); ?>
+</small>
+
+</td>
+
+
+<td>
+
+<?php
+echo oe(
+    $row["tour_name"] ?: "Tour Booking"
+);
+?>
+
+</td>
+
+
+<td class="money">
+
+KES
+<?php
+echo number_format(
+    (float)$row["amount"],
+    2
+);
+?>
+
+</td>
+
+
+<td>
+
+<?php echo oe($row["payment"]); ?>
+
+</td>
+
+
+<td>
+
+<span
+class="pill <?php echo $statusClass; ?>"
+>
+
+<?php
+echo oe(
+    $row["payment_status"]
+);
+?>
+
+</span>
+
+</td>
+
+
+<td>
+
+<?php if ($isTestLike): ?>
+
+<span class="test-badge">
+
+<i class="fa-solid fa-flask"></i>
+
+TEST-LIKE
+
+</span>
+
+<?php else: ?>
+
+<span class="live-badge">
+
+<i class="fa-solid fa-briefcase"></i>
+
+LIVE
+
+</span>
+
+<?php endif; ?>
+
+</td>
+
+
+<td>
+
+<?php echo oe($reference); ?>
+
+</td>
+
+
+<td>
+
+<?php
+
+echo $row["created_at"]
+    ? date(
+        "d M Y H:i",
+        strtotime($row["created_at"])
+      )
+    : "—";
+
+?>
+
+</td>
+
+
+<td>
+
+<div class="payment-actions">
+
+<a
+class="ledger-action"
+href="owner_booking_view.php?id=<?php echo (int)$row["id"]; ?>"
+>
+
+<i class="fa-solid fa-eye"></i>
+
+Booking
+
+</a>
+
+
+<?php
+if (
+    strtolower(
+        (string)$row["payment_status"]
+    ) === "paid"
+):
+?>
+
+<a
+class="ledger-action receipt-action"
+href="owner_receipt.php?id=<?php echo (int)$row["id"]; ?>"
+>
+
+<i class="fa-solid fa-receipt"></i>
+
+Receipt
+
+</a>
+
+<?php endif; ?>
+
+</div>
+
+</td>
+
+</tr>
+
+<?php endwhile; ?>
+
+</tbody>
+
+</table>
+
+<?php else: ?>
+
+<div class="empty">
+
+No payment records match the selected filters.
+
+</div>
+
+<?php endif; ?>
+
+</div>
+
+</section>
+
+</main>
+
+</div>
+
+<script>
+const sidebar = document.getElementById("ownerSidebar");
+const menu = document.getElementById("ownerMenu");
+
+if (sidebar && menu) {
+    menu.addEventListener("click", function () {
+        sidebar.classList.toggle("open");
+    });
+}
+</script>
+
+</body>
+</html>

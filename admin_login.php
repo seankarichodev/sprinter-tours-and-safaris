@@ -27,18 +27,62 @@ if (!in_array($portal, ["admin", "owner"], true)) {
 
 
 /* =========================================================
-   ALREADY LOGGED IN
+   EXISTING / STALE STAFF SESSION
+
+   A staff session is reusable only when it is complete and
+   belongs to the portal currently being requested. This
+   prevents an old Admin session from blocking the Owner
+   portal (and vice versa), and also repairs incomplete
+   sessions left behind by older versions of the project.
 ========================================================= */
 
-if (isset($_SESSION["admin_id"], $_SESSION["admin_role"])) {
+$hasAnyStaffSession =
+    isset($_SESSION["admin_id"])
+    || isset($_SESSION["admin_username"])
+    || isset($_SESSION["admin_role"])
+    || isset($_SESSION["admin"]);
 
-    if ($_SESSION["admin_role"] === "owner") {
-        header("Location: owner_dashboard.php");
-        exit();
+$hasCompleteStaffSession =
+    isset(
+        $_SESSION["admin_id"],
+        $_SESSION["admin_username"],
+        $_SESSION["admin_role"]
+    );
+
+if ($hasCompleteStaffSession) {
+
+    $sessionRole = strtolower(
+        trim((string) $_SESSION["admin_role"])
+    );
+
+    if ($sessionRole === $portal) {
+
+        if ($sessionRole === "owner") {
+            header("Location: owner_dashboard.php");
+            exit();
+        }
+
+        if ($sessionRole === "admin") {
+            header("Location: dashboard.php");
+            exit();
+        }
     }
+}
 
-    header("Location: dashboard.php");
-    exit();
+/*
+   If the session is incomplete, invalid, or belongs to the
+   other portal, clear only the staff-login keys. Customer
+   session data (if any) remains untouched.
+*/
+if ($hasAnyStaffSession) {
+    unset(
+        $_SESSION["admin_id"],
+        $_SESSION["admin_username"],
+        $_SESSION["admin_role"],
+        $_SESSION["admin"]
+    );
+
+    session_regenerate_id(true);
 }
 
 
